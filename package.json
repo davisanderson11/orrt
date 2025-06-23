@@ -7,29 +7,33 @@
     "types": "dist/index.d.ts",
     "unpkg": "dist/index.browser.min.js",
     "scripts": {
-      "build": "tsup src/index.ts --format esm,iife --sourcemap --dts --treeshake --clean --global-name jsPsychTimelineOrrt"
+        "build": "tsup src/index.ts --format esm,iife --sourcemap --dts --treeshake --clean --global-name jsPsychTimelineOrrt"
     },
     "repository": {
-      "type": "git",
-      "url": "",
-      "directory": "./"
+        "type": "git",
+        "url": "",
+        "directory": "./"
     },
     "keywords": [
-      "jsPsych"
+        "jsPsych"
     ],
     "author": {
-      "name": "Davis Anderson",
-      "url": "https://github.com/davisanderson11"
+        "name": "Davis Anderson",
+        "url": "https://github.com/davisanderson11"
     },
     "license": "MIT",
     "bugs": {
-      "url": "/issues"
+        "url": "/issues"
     },
     "homepage": "/orrt/README.md",
     "devDependencies": {
-      "jspsych": "^8.0.0",
-      "@jspsych/config": "^3.2.2",
-      "tsup": "^6.7.0",
-      "typescript": "^5.0.2"
+        "@jspsych/config": "^3.2.2",
+        "jspsych": "^8.0.0",
+        "tsup": "^6.7.0",
+        "typescript": "^5.0.2"
+    },
+    "dependencies": {
+        "@jspsych/plugin-html-button-response": "^2.1.0",
+        "@jspsych/plugin-html-keyboard-response": "^2.1.0"
     }
-  }
+}

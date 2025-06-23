@@ -15,9 +15,12 @@
 <script>
   const jsPsych = initJsPsych();
 
-  const task = jsPsychTimelineOrrt.createTimeline(jsPsych, { });
+  async function runExperiment() {
+    const timeline = await jsPsychTimelineOrrt.createTimeline(jsPsych, { });
+    jsPsych.run(timeline);
+  }
 
-  jsPsych.run([task])
+  runExperiment();
 </script>
 
 </html>

@@ -1,9 +1,165 @@
 import { JsPsych } from "jspsych";
-import jsPsychHtmlKeyboardResponse from '@jspsych/plugin-html-keyboard-response';
-import jsPsychHtmlButtonResponse from '@jspsych/plugin-html-button-response';
+import HtmlKeyboardResponsePlugin from '@jspsych/plugin-html-keyboard-response';
+import HtmlButtonResponsePlugin from '@jspsych/plugin-html-button-response';
+
+/* CSS Styles */
+export const ORR_STYLES = `
+    <style>
+        .orr-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px;
+            min-height: 80vh;
+            justify-content: center;
+        }
+        
+        .orr-item {
+            font-size: 72px;
+            font-weight: bold;
+            color: #333;
+            margin: 40px 0;
+            font-family: 'Arial', sans-serif;
+            letter-spacing: 2px;
+        }
+        
+        .orr-letter-array {
+            display: flex;
+            gap: 50px;
+            margin: 40px 0;
+        }
+        
+        .orr-letter-choice {
+            font-size: 60px;
+            font-weight: bold;
+            padding: 30px 40px;
+            border: 3px solid #ddd;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: white;
+        }
+        
+        .orr-letter-choice:hover {
+            background: #f0f0f0;
+            border-color: #0066cc;
+            transform: scale(1.05);
+        }
+        
+        .orr-letter-choice.selected {
+            background: #e3f2fd;
+            border-color: #0066cc;
+        }
+        
+        .orr-instructions {
+            font-size: 24px;
+            color: #555;
+            margin-bottom: 30px;
+            text-align: center;
+            font-style: italic;
+        }
+        
+        .orr-admin-panel {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #e0e0e0;
+            padding: 20px;
+            border-radius: 8px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        
+        .orr-score-indicator {
+            font-size: 18px;
+            font-weight: bold;
+            padding: 8px 15px;
+            border-radius: 5px;
+            min-width: 80px;
+            text-align: center;
+        }
+        
+        .orr-score-correct {
+            background: #22c55e;
+            color: white;
+        }
+        
+        .orr-score-incorrect {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .orr-score-pending {
+            background: #fbbf24;
+            color: #333;
+        }
+        
+        .orr-admin-info {
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .demographics-form {
+            max-width: 500px;
+            margin: auto;
+        }
+        
+        .demographics-form label {
+            display: block;
+            margin-top: 15px;
+            font-weight: bold;
+        }
+        
+        .demographics-form input, .demographics-form select {
+            width: 100%;
+            padding: 8px;
+            margin-top: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        
+        .setup-container {
+            max-width: 700px;
+            margin: auto;
+            padding: 30px;
+        }
+        
+        .setup-section {
+            background: #f5f5f5;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border-left: 5px solid #0066cc;
+        }
+        
+        .loading-screen {
+            text-align: center;
+            padding: 50px;
+        }
+        
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #0066cc;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+`;
 
 /* Constants */
-const DEFAULT_MIN_ITEMS = 20;
+const DEFAULT_MIN_ITEMS = 40;
 const DEFAULT_MAX_ITEMS = 40;
 const DEFAULT_TARGET_SE = 0.3;
 const PROMPT_DELAY = 5000;
@@ -53,6 +209,17 @@ interface GameState {
     itemsAdministered: string[];
     currentItem: WordItem | null;
     isLoading: boolean;
+}
+
+interface TrialData extends Record<string, any> {
+    response?: string;
+    correct?: boolean;
+    rt?: number;
+    phase?: string;
+    item_id?: string;
+    item_content?: string | string[];
+    item_type?: string;
+    item_difficulty?: number;
 }
 
 /* Default CAT Configuration */
@@ -152,7 +319,7 @@ class ORRWordBankLoader {
                     const match = line.match(/^([^,\t]+)/);
                     if (match) {
                         const word = match[1].trim().toLowerCase();
-                        if (!word.includes(' ') && /[aeiouAEIOU]/.test(word) && word.length > 2) {
+                        if (typeof word === 'string' && word.indexOf(' ') === -1 && /[aeiouAEIOU]/.test(word) && word.length > 2) {
                             greWords.push(word);
                         }
                     }
@@ -165,7 +332,7 @@ class ORRWordBankLoader {
             const basicResponse = await fetch(basicUrl);
             const basicText = await basicResponse.text();
             const basicWords = basicText.split('\n')
-                .filter(w => w.length > 0 && /[aeiouAEIOU]/.test(w))
+                .filter((w: string) => w.length > 0 && /[aeiouAEIOU]/.test(w))
                 .slice(0, 2000);
             
             const allWords: WordItem[] = [];
@@ -211,7 +378,7 @@ class ORRWordBankLoader {
                 const response = await fetch(basicUrl);
                 const text = await response.text();
                 const words = text.split('\n')
-                    .filter(w => w.length > 0 && /[aeiouAEIOU]/.test(w));
+                    .filter((w: string) => w.length > 0 && /[aeiouAEIOU]/.test(w));
                 
                 return this.processBasicWords(words);
             } catch (fallbackError) {
@@ -257,7 +424,12 @@ class ORRWordBankLoader {
             veryHard: this.randomSample(wordPools.veryHard, 10)
         };
         
-        Object.values(samples).flat().forEach(({ word, index }) => {
+        const flatSamples: { word: string; index: number }[] = [];
+        Object.values(samples).forEach(sampleArray => {
+            sampleArray.forEach(item => flatSamples.push(item));
+        });
+        
+        flatSamples.forEach(({ word, index }) => {
             const difficulty = this.calculateDifficulty(index, word);
             selectedWords.push({
                 id: `W${wordId++}`,
@@ -282,9 +454,9 @@ class ORRWordBankLoader {
         else if (word.length > 6) difficulty += 0.3;
         else if (word.length < 4) difficulty -= 0.5;
         
-        if (word.includes('ph') || word.includes('gh')) difficulty += 0.3;
-        if (word.includes('tion') || word.includes('sion')) difficulty += 0.4;
-        if (word.includes('ough') || word.includes('augh')) difficulty += 0.5;
+        if (word.indexOf('ph') !== -1 || word.indexOf('gh') !== -1) difficulty += 0.3;
+        if (word.indexOf('tion') !== -1 || word.indexOf('sion') !== -1) difficulty += 0.4;
+        if (word.indexOf('ough') !== -1 || word.indexOf('augh') !== -1) difficulty += 0.5;
         
         return Math.min(10.0, Math.max(3.0, difficulty));
     }
@@ -367,6 +539,11 @@ function selectNextItem(currentAbility: number, administeredItems: string[]): Wo
         }
     }
     
+    // Ensure we have at least one item
+    if (candidateItems.length === 0) {
+        return availableItems[0];
+    }
+    
     candidateItems.sort((a, b) => 
         Math.abs(a.difficulty - targetDifficulty) - Math.abs(b.difficulty - targetDifficulty)
     );
@@ -386,7 +563,7 @@ function updateAbilityEstimate(responses: Response[]): number {
     let sumDifficulty = 0;
     let sumCorrect = 0;
     
-    for (let response of responses) {
+    for (const response of responses) {
         const item = CAT_CONFIG.items.find(i => i.id === response.itemId);
         if (item) {
             sumDifficulty += item.difficulty;
@@ -407,8 +584,8 @@ function calculateStandardError(responses: Response[]): number {
     
     const recentResponses = responses.slice(-10);
     const recentCorrect = recentResponses.map(r => r.correct ? 1 : 0);
-    const mean = recentCorrect.reduce((a, b) => a + b, 0) / recentCorrect.length;
-    const variance = recentCorrect.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / recentCorrect.length;
+    const mean = recentCorrect.reduce((a: number, b: number) => a + b, 0) / recentCorrect.length;
+    const variance = recentCorrect.reduce((sum: number, val: number) => sum + Math.pow(val - mean, 2), 0) / recentCorrect.length;
     
     return Math.sqrt(variance) / Math.sqrt(recentResponses.length);
 }
@@ -424,6 +601,7 @@ function shouldStopTest(responses: Response[]): boolean {
 function createItemStimulus(item: WordItem): string {
     if (item.type === 'letter_array' && item.target) {
         return `
+            ${ORR_STYLES}
             <div class="orr-container">
                 <div class="orr-instructions">Point to the letter ${item.target}</div>
                 <div class="orr-letter-array">
@@ -446,6 +624,7 @@ function createItemStimulus(item: WordItem): string {
     } else {
         const itemType = item.type === 'letter' ? 'letter' : 'word';
         return `
+            ${ORR_STYLES}
             <div class="orr-container">
                 <div class="orr-instructions">What is this ${itemType}?</div>
                 <div class="orr-item">${item.content}</div>
@@ -465,8 +644,9 @@ function createItemStimulus(item: WordItem): string {
 /* Timeline component generating functions */
 function createDemographics() {
     return {
-        type: jsPsychHtmlButtonResponse,
+        type: HtmlButtonResponsePlugin,
         stimulus: `
+            ${ORR_STYLES}
             <div class="demographics-form">
                 <h2>Participant Information</h2>
                 <label>Age:
@@ -488,7 +668,7 @@ function createDemographics() {
             </div>
         `,
         choices: ['Continue'],
-        on_finish: function(data: any) {
+        on_finish: function(data: TrialData) {
             try {
                 const ageEl = document.getElementById('participant-age') as HTMLInputElement;
                 const educationEl = document.getElementById('participant-education') as HTMLSelectElement;
@@ -522,8 +702,9 @@ function createDemographics() {
 
 function createSetupInstructions() {
     return {
-        type: jsPsychHtmlButtonResponse,
+        type: HtmlButtonResponsePlugin,
         stimulus: `
+            ${ORR_STYLES}
             <div class="setup-container">
                 <h1>Setup Instructions</h1>
                 
@@ -548,8 +729,9 @@ function createSetupInstructions() {
 
 function createMainInstructions() {
     return {
-        type: jsPsychHtmlButtonResponse,
+        type: HtmlButtonResponsePlugin,
         stimulus: `
+            ${ORR_STYLES}
             <div style="max-width: 700px; margin: auto; text-align: center;">
                 <h1>Oral Reading Recognition</h1>
                 <div style="font-size: 22px; line-height: 1.6; margin: 40px 0;">
@@ -570,7 +752,7 @@ function createMainInstructions() {
 
 function createTestTrial(jsPsych: JsPsych) {
     return {
-        type: jsPsychHtmlKeyboardResponse,
+        type: HtmlKeyboardResponsePlugin,
         stimulus: function() {
             state.currentItem = selectNextItem(state.abilityEstimate, state.itemsAdministered);
             
@@ -592,9 +774,9 @@ function createTestTrial(jsPsych: JsPsych) {
                 
                 const choices = document.querySelectorAll('.orr-letter-choice');
                 choices.forEach(choice => {
-                    choice.addEventListener('click', function() {
+                    choice.addEventListener('click', function(this: HTMLElement) {
                         choices.forEach(c => c.classList.remove('selected'));
-                        (this as HTMLElement).classList.add('selected');
+                        this.classList.add('selected');
                     });
                 });
             } else {
@@ -608,7 +790,7 @@ function createTestTrial(jsPsych: JsPsych) {
                 }
             }, PROMPT_DELAY);
         },
-        on_finish: function(data: any) {
+        on_finish: function(data: TrialData) {
             if (state.currentItem) {
                 data.item_id = state.currentItem.id;
                 data.item_content = state.currentItem.content;
@@ -622,22 +804,22 @@ function createTestTrial(jsPsych: JsPsych) {
 
 function createSpacebarTrial(jsPsych: JsPsych) {
     return {
-        type: jsPsychHtmlKeyboardResponse,
+        type: HtmlKeyboardResponsePlugin,
         stimulus: function() {
             if (!state.currentItem || shouldStopTest(state.responses)) {
                 return '<div style="display:none;">Test Complete</div>';
             }
             
-            const prevData = jsPsych.data.get().filter({phase: 'scoring'}).last(1).values()[0];
-            const correct = prevData.correct;
+            const prevData = jsPsych.data.get().filter({phase: 'scoring'}).last(1).values()[0] as TrialData;
+            const correct = prevData.correct || false;
             
-            let html = '<div class="orr-container">';
+            let html = `${ORR_STYLES}<div class="orr-container">`;
             
             if (state.currentItem.type === 'letter_array' && state.currentItem.target) {
                 html += `<div class="orr-instructions">Point to the letter ${state.currentItem.target}</div>`;
                 html += '<div class="orr-letter-array">';
-                (state.currentItem.content as string[]).forEach((letter, index) => {
-                    html += `<div class="orr-letter-choice" data-index="${index}">
+                (state.currentItem.content as string[]).forEach((letter) => {
+                    html += `<div class="orr-letter-choice">
                         ${letter}
                     </div>`;
                 });
@@ -668,10 +850,10 @@ function createSpacebarTrial(jsPsych: JsPsych) {
         data: {
             phase: 'spacebar'
         },
-        on_finish: function(data: any) {
+        on_finish: function(data: TrialData) {
             if (!state.currentItem) return;
             
-            const prevData = jsPsych.data.get().filter({phase: 'scoring'}).last(1).values()[0];
+            const prevData = jsPsych.data.get().filter({phase: 'scoring'}).last(1).values()[0] as TrialData;
             
             if (data.response === 'ArrowLeft' && state.responses.length > 0) {
                 // Go back functionality
@@ -682,8 +864,8 @@ function createSpacebarTrial(jsPsych: JsPsych) {
                 // Record response
                 state.responses.push({
                     itemId: state.currentItem.id,
-                    correct: prevData.correct,
-                    rt: prevData.rt
+                    correct: prevData.correct || false,
+                    rt: prevData.rt || 0
                 });
                 state.itemsAdministered.push(state.currentItem.id);
                 
@@ -696,7 +878,7 @@ function createSpacebarTrial(jsPsych: JsPsych) {
 
 function createResults(jsPsych: JsPsych) {
     return {
-        type: jsPsychHtmlButtonResponse,
+        type: HtmlButtonResponsePlugin,
         stimulus: function() {
             const totalCorrect = state.responses.filter(r => r.correct).length;
             const accuracy = state.responses.length > 0 ? 
@@ -705,6 +887,7 @@ function createResults(jsPsych: JsPsych) {
             const finalSE = calculateStandardError(state.responses);
             
             return `
+                ${ORR_STYLES}
                 <div style="max-width: 700px; margin: auto; text-align: center;">
                     <h1>Test Complete!</h1>
                     <h2>Summary Results</h2>
@@ -737,26 +920,6 @@ function createResults(jsPsych: JsPsych) {
     };
 }
 
-function createLoadingScreen(): string {
-    return `
-        <div class="loading-screen" id="loading-screen">
-            <h2>Loading Oral Reading Recognition Test</h2>
-            <div class="loading-spinner"></div>
-            <p>Loading word database...</p>
-        </div>
-    `;
-}
-
-function createErrorScreen(): string {
-    return `
-        <div style="text-align: center; padding: 50px;">
-            <h2>Error Loading Test</h2>
-            <p>Failed to load the word database. Please check your internet connection and refresh the page.</p>
-            <button onclick="location.reload()">Refresh Page</button>
-        </div>
-    `;
-}
-
 /* Main timeline creation function */
 export async function createTimeline(
     jsPsych: JsPsych,
@@ -775,7 +938,7 @@ export async function createTimeline(
         showResults?: boolean,
         preloadWords?: boolean
     } = {}
-): Promise<any[]> {
+): Promise<Record<string, any>[]> {
     // Reset state for new timeline
     resetState();
     
@@ -784,7 +947,7 @@ export async function createTimeline(
     CAT_CONFIG.maxItems = maxItems;
     CAT_CONFIG.targetSE = targetSE;
     
-    const timeline: any[] = [];
+    const timeline: Record<string, any>[] = [];
     
     // Load words if preloading
     if (preloadWords && CAT_CONFIG.items.length === 0) {
@@ -853,4 +1016,4 @@ export const utils = {
 };
 
 /* Export types */
-export type { WordItem, Response, ParticipantData, CATConfig, GameState };
+export type { WordItem, Response, ParticipantData, CATConfig, GameState, TrialData };
