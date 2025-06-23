@@ -495,7 +495,25 @@ function playAudio(text: string) {
     if ('speechSynthesis' in window) {
         speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(text);
-        utterance.rate = 0.9;
+        
+        // Adjust settings based on content type
+        if (text.length === 1 && /^[A-Z]$/.test(text)) {
+            // For single letters, slow down and emphasize
+            utterance.rate = 0.7;
+            utterance.pitch = 1.1;
+            utterance.volume = 1.0;
+        } else if (text.split(' ').length === 1 && text.length < 20) {
+            // For single words
+            utterance.rate = 0.8;
+            utterance.pitch = 1.0;
+            utterance.volume = 1.0;
+        } else {
+            // For sentences and instructions
+            utterance.rate = 0.9;
+            utterance.pitch = 1.0;
+            utterance.volume = 0.9;
+        }
+        
         speechSynthesis.speak(utterance);
     }
 }
@@ -743,10 +761,7 @@ function createMainInstructions() {
                 </div>
             </div>
         `,
-        choices: ['Ready'],
-        on_load: function() {
-            playAudio("Now, we're going to look at some letters and some words. Read each letter or word out loud. Some will be easy, and some will be hard. Don't worry if you don't know the word or its meaning—just read it out loud the best you can. Are you ready?");
-        }
+        choices: ['Ready']
     };
 }
 
@@ -770,8 +785,7 @@ function createTestTrial(jsPsych: JsPsych) {
             if (!state.currentItem) return;
             
             if (state.currentItem.type === 'letter_array' && state.currentItem.target) {
-                playAudio(`Point to the letter ${state.currentItem.target}`);
-                
+                // Don't read instructions, only setup click handlers
                 const choices = document.querySelectorAll('.orr-letter-choice');
                 choices.forEach(choice => {
                     choice.addEventListener('click', function(this: HTMLElement) {
@@ -780,15 +794,15 @@ function createTestTrial(jsPsych: JsPsych) {
                     });
                 });
             } else {
-                const itemType = state.currentItem.type === 'letter' ? 'letter' : 'word';
-                playAudio(`What is this ${itemType}?`);
+                // Read only the word or letter aloud after a short delay
+                setTimeout(() => {
+                    if (state.currentItem && typeof state.currentItem.content === 'string') {
+                        playAudio(state.currentItem.content);
+                    }
+                }, 500);
             }
             
-            setTimeout(() => {
-                if (jsPsych.getCurrentTrial() && state.currentItem) {
-                    playAudio("It is OK if you don't know the word or what it means—just try to read it out loud the best you can.");
-                }
-            }, PROMPT_DELAY);
+            // Removed prompt audio - only reading test words
         },
         on_finish: function(data: TrialData) {
             if (state.currentItem) {
