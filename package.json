@@ -1,0 +1,35 @@
+{
+    "name": "orrt",
+    "version": "0.0.1",
+    "description": "ORRT",
+    "type": "module",
+    "main": "dist/index.mjs",
+    "types": "dist/index.d.ts",
+    "unpkg": "dist/index.browser.min.js",
+    "scripts": {
+      "build": "tsup src/index.ts --format esm,iife --sourcemap --dts --treeshake --clean --global-name jsPsychTimelineOrrt"
+    },
+    "repository": {
+      "type": "git",
+      "url": "",
+      "directory": "./"
+    },
+    "keywords": [
+      "jsPsych"
+    ],
+    "author": {
+      "name": "Davis Anderson",
+      "url": "https://github.com/davisanderson11"
+    },
+    "license": "MIT",
+    "bugs": {
+      "url": "/issues"
+    },
+    "homepage": "/orrt/README.md",
+    "devDependencies": {
+      "jspsych": "^8.0.0",
+      "@jspsych/config": "^3.2.2",
+      "tsup": "^6.7.0",
+      "typescript": "^5.0.2"
+    }
+  }
