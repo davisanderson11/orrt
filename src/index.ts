@@ -171,6 +171,7 @@ interface WordItem {
     type: 'letter' | 'word' | 'letter_array';
     difficulty: number;
     target?: string;
+    ipa?: string;
     properties?: {
         source?: string;
         frequency_rank?: number;
@@ -209,6 +210,8 @@ interface GameState {
     itemsAdministered: string[];
     currentItem: WordItem | null;
     isLoading: boolean;
+    isPractice: boolean;
+    practiceResponses: Response[];
 }
 
 interface TrialData extends Record<string, any> {
@@ -264,8 +267,67 @@ let state: GameState = {
     abilityEstimate: 3.0,
     itemsAdministered: [],
     currentItem: null,
-    isLoading: false
+    isLoading: false,
+    isPractice: false,
+    practiceResponses: []
 };
+
+/* IPA fetching functions */
+async function fetchIPADictionary(): Promise<Map<string, string>> {
+    const ipaMap = new Map<string, string>();
+    
+    try {
+        // Using a public CMU dictionary converted to IPA format
+        const response = await fetch('https://raw.githubusercontent.com/open-dict-data/ipa-dict/master/data/en_US.txt');
+        const text = await response.text();
+        const lines = text.split('\n');
+        
+        for (const line of lines) {
+            if (line.trim()) {
+                const [word, ipa] = line.split('\t');
+                if (word && ipa) {
+                    ipaMap.set(word.toLowerCase(), ipa);
+                }
+            }
+        }
+        
+        console.log(`Loaded ${ipaMap.size} IPA pronunciations`);
+    } catch (error) {
+        console.error('Failed to load IPA dictionary:', error);
+        // Try alternative source
+        try {
+            const backupResponse = await fetch('https://raw.githubusercontent.com/menelik3/cmudict-ipa/master/cmudict-ipa.txt');
+            const backupText = await backupResponse.text();
+            const backupLines = backupText.split('\n');
+            
+            for (const line of backupLines) {
+                if (line.trim()) {
+                    const parts = line.split(/\s+/);
+                    if (parts.length >= 2) {
+                        const word = parts[0].toLowerCase().replace(/\(\d+\)$/, ''); // Remove (1), (2) variants
+                        const ipa = '/' + parts.slice(1).join(' ') + '/';
+                        ipaMap.set(word, ipa);
+                    }
+                }
+            }
+            console.log(`Loaded ${ipaMap.size} IPA pronunciations from backup source`);
+        } catch (backupError) {
+            console.error('Failed to load backup IPA dictionary:', backupError);
+        }
+    }
+    
+    return ipaMap;
+}
+
+// Global IPA dictionary
+let ipaDict: Map<string, string> | null = null;
+
+async function getIPA(word: string): Promise<string | undefined> {
+    if (!ipaDict) {
+        ipaDict = await fetchIPADictionary();
+    }
+    return ipaDict.get(word.toLowerCase());
+}
 
 /* Word Bank Loader Class */
 class ORRWordBankLoader {
@@ -306,6 +368,9 @@ class ORRWordBankLoader {
         const greUrl = 'https://raw.githubusercontent.com/Isomorpheuss/advanced-english-vocabulary/master/vocab/GRE%20Master%20Wordlist%205349.csv';
         const basicUrl = 'https://raw.githubusercontent.com/first20hours/google-10000-english/master/google-10000-english-no-swears.txt';
         
+        // Pre-load IPA dictionary
+        await fetchIPADictionary();
+        
         try {
             // Load GRE words for advanced vocabulary
             const greResponse = await fetch(greUrl);
@@ -339,35 +404,41 @@ class ORRWordBankLoader {
             let wordId = 1;
             
             // Add basic words
-            basicWords.forEach((word, index) => {
+            for (let index = 0; index < basicWords.length; index++) {
+                const word = basicWords[index];
                 const difficulty = 3.0 + (index / 2000) * 3.0;
+                const ipa = await getIPA(word);
                 allWords.push({
                     id: `W${wordId++}`,
                     content: word,
                     type: 'word',
                     difficulty: difficulty,
+                    ipa: ipa,
                     properties: {
                         source: 'common',
                         frequency_rank: index + 1
                     }
                 });
-            });
+            }
             
             // Add GRE words
             const sampledGREWords = this.randomSample(greWords, 150);
-            sampledGREWords.forEach((word, index) => {
+            for (let index = 0; index < sampledGREWords.length; index++) {
+                const word = sampledGREWords[index];
                 const difficulty = 6.0 + (index / sampledGREWords.length) * 4.0;
+                const ipa = await getIPA(word);
                 allWords.push({
                     id: `W${wordId++}`,
                     content: word,
                     type: 'word',
                     difficulty: difficulty,
+                    ipa: ipa,
                     properties: {
                         source: 'GRE',
                         difficulty_level: difficulty > 8 ? 'advanced' : 'intermediate'
                     }
                 });
-            });
+            }
             
             return allWords.sort(() => 0.5 - Math.random());
             
@@ -380,7 +451,7 @@ class ORRWordBankLoader {
                 const words = text.split('\n')
                     .filter((w: string) => w.length > 0 && /[aeiouAEIOU]/.test(w));
                 
-                return this.processBasicWords(words);
+                return await this.processBasicWords(words);
             } catch (fallbackError) {
                 console.error('Fallback also failed:', fallbackError);
                 return [];
@@ -393,7 +464,7 @@ class ORRWordBankLoader {
         return shuffled.slice(0, Math.min(n, shuffled.length));
     }
 
-    private processBasicWords(words: string[]): WordItem[] {
+    private async processBasicWords(words: string[]): Promise<WordItem[]> {
         const wordPools: Record<string, { word: string; index: number }[]> = {
             easy: [],
             mediumEasy: [],
@@ -429,19 +500,21 @@ class ORRWordBankLoader {
             sampleArray.forEach(item => flatSamples.push(item));
         });
         
-        flatSamples.forEach(({ word, index }) => {
+        for (const { word, index } of flatSamples) {
             const difficulty = this.calculateDifficulty(index, word);
+            const ipa = await getIPA(word);
             selectedWords.push({
                 id: `W${wordId++}`,
                 content: word,
                 type: 'word',
                 difficulty: difficulty,
+                ipa: ipa,
                 properties: {
                     frequency_rank: index + 1,
                     length: word.length
                 }
             });
-        });
+        }
         
         return selectedWords.sort(() => 0.5 - Math.random());
     }
@@ -487,14 +560,37 @@ function resetState() {
         abilityEstimate: 3.0,
         itemsAdministered: [],
         currentItem: null,
-        isLoading: false
+        isLoading: false,
+        isPractice: false,
+        practiceResponses: []
     };
 }
 
-function playAudio(text: string) {
+// Convert IPA to approximate pronunciation for TTS
+function ipaToSpeechApproximation(ipa: string): string {
+    // For now, just return the original word - IPA conversion is too unreliable
+    // The TTS engine does better with the actual word than with our approximations
+    return '';
+}
+
+function playAudio(text: string, ipa?: string) {
     if ('speechSynthesis' in window) {
         speechSynthesis.cancel();
+        
+        // Just use the original text - most TTS engines don't support IPA well
+        // and do better with the actual word
         const utterance = new SpeechSynthesisUtterance(text);
+        
+        // Try to find an English voice that might better support phonetics
+        const voices = speechSynthesis.getVoices();
+        const englishVoice = voices.find(voice => 
+            voice.lang.startsWith('en-') && 
+            (voice.name.includes('Google') || voice.name.includes('Microsoft') || voice.name.includes('Enhanced'))
+        ) || voices.find(voice => voice.lang.startsWith('en-'));
+        
+        if (englishVoice) {
+            utterance.voice = englishVoice;
+        }
         
         // Adjust settings based on content type
         if (text.length === 1 && /^[A-Z]$/.test(text)) {
@@ -617,10 +713,61 @@ function shouldStopTest(responses: Response[]): boolean {
 }
 
 function createItemStimulus(item: WordItem): string {
+    const currentCount = state.isPractice ? state.practiceResponses.length + 1 : state.responses.length + 1;
+    const totalCount = state.isPractice ? 3 : CAT_CONFIG.maxItems;
+    const progressText = state.isPractice ? `Practice ${currentCount} of 3` : `Item ${currentCount} of ${totalCount}`;
+    
+    const audioRepeatButton = item.type !== 'letter_array' ? `
+        <button class="orr-audio-repeat" onclick="window.repeatAudio()" title="Repeat audio (R)">
+            🔊 Repeat
+        </button>
+    ` : '';
+    
     if (item.type === 'letter_array' && item.target) {
         return `
             ${ORR_STYLES}
+            <style>
+                .orr-progress {
+                    position: absolute;
+                    top: 20px;
+                    right: 20px;
+                    font-size: 18px;
+                    color: #666;
+                    font-weight: bold;
+                }
+                .orr-audio-repeat {
+                    position: absolute;
+                    top: 20px;
+                    left: 20px;
+                    padding: 8px 16px;
+                    background: #4CAF50;
+                    color: white;
+                    border: none;
+                    border-radius: 5px;
+                    cursor: pointer;
+                    font-size: 16px;
+                }
+                .orr-audio-repeat:hover {
+                    background: #45a049;
+                }
+                .orr-pause-button {
+                    position: absolute;
+                    bottom: 20px;
+                    right: 20px;
+                    padding: 8px 16px;
+                    background: #ff9800;
+                    color: white;
+                    border: none;
+                    border-radius: 5px;
+                    cursor: pointer;
+                    font-size: 14px;
+                }
+                .orr-pause-button:hover {
+                    background: #e68900;
+                }
+            </style>
             <div class="orr-container">
+                <div class="orr-progress">${progressText}</div>
                 <div class="orr-instructions">Point to the letter ${item.target}</div>
                 <div class="orr-letter-array">
                     ${(item.content as string[]).map((letter, index) => `
@@ -634,7 +781,7 @@ function createItemStimulus(item: WordItem): string {
                         Awaiting Score (1 or 0)
                     </div>
                     <div class="orr-admin-info">
-                        Item ${state.responses.length + 1} | Press 1 for correct, 0 for incorrect
+                        1/↑ = correct | 0/↓ = incorrect | R = repeat | P = pause
                     </div>
                 </div>
             </div>
@@ -643,20 +790,131 @@ function createItemStimulus(item: WordItem): string {
         const itemType = item.type === 'letter' ? 'letter' : 'word';
         return `
             ${ORR_STYLES}
+            <style>
+                .orr-progress {
+                    position: absolute;
+                    top: 20px;
+                    right: 20px;
+                    font-size: 18px;
+                    color: #666;
+                    font-weight: bold;
+                }
+                .orr-audio-repeat {
+                    position: absolute;
+                    top: 20px;
+                    left: 20px;
+                    padding: 8px 16px;
+                    background: #4CAF50;
+                    color: white;
+                    border: none;
+                    border-radius: 5px;
+                    cursor: pointer;
+                    font-size: 16px;
+                }
+                .orr-audio-repeat:hover {
+                    background: #45a049;
+                }
+                .orr-pause-button {
+                    position: absolute;
+                    bottom: 20px;
+                    right: 20px;
+                    padding: 8px 16px;
+                    background: #ff9800;
+                    color: white;
+                    border: none;
+                    border-radius: 5px;
+                    cursor: pointer;
+                    font-size: 14px;
+                }
+                .orr-pause-button:hover {
+                    background: #e68900;
+                }
+            </style>
             <div class="orr-container">
+                <div class="orr-progress">${progressText}</div>
+                ${audioRepeatButton}
                 <div class="orr-instructions">What is this ${itemType}?</div>
                 <div class="orr-item">${item.content}</div>
+                ${item.ipa ? `<div style="font-size: 24px; color: #666; margin-top: 10px; font-style: italic;">${item.ipa}</div>` : ''}
                 <div class="orr-admin-panel">
                     <div class="orr-score-indicator orr-score-pending" id="score-indicator">
                         Awaiting Score (1 or 0)
                     </div>
                     <div class="orr-admin-info">
-                        Item ${state.responses.length + 1} | Press 1 for correct, 0 for incorrect
+                        1/↑ = correct | 0/↓ = incorrect | R = repeat | P = pause
                     </div>
                 </div>
             </div>
         `;
     }
+}
+
+function createPauseScreen() {
+    return {
+        type: HtmlButtonResponsePlugin,
+        stimulus: `
+            ${ORR_STYLES}
+            <div style="max-width: 700px; margin: auto; text-align: center;">
+                <h1>Test Paused</h1>
+                <div style="font-size: 20px; line-height: 1.6; margin: 40px 0;">
+                    <p>The test has been paused.</p>
+                    <p>Take a break if needed.</p>
+                    <p style="margin-top: 30px;"><strong>When you're ready, click Continue to resume.</strong></p>
+                </div>
+            </div>
+        `,
+        choices: ['Continue']
+    };
+}
+
+/* Practice items */
+function getPracticeItems(): WordItem[] {
+    return [
+        { id: 'P1', content: 'CAT', type: 'word', difficulty: 3.0 },
+        { id: 'P2', content: 'B', type: 'letter', difficulty: 0.6 },
+        { id: 'P3', content: ['A', 'B', 'C', 'D'], type: 'letter_array', target: 'C', difficulty: 0.8 }
+    ];
+}
+
+function createPracticeInstructions() {
+    return {
+        type: HtmlButtonResponsePlugin,
+        stimulus: `
+            ${ORR_STYLES}
+            <div style="max-width: 700px; margin: auto; text-align: center;">
+                <h1>Practice Trials</h1>
+                <div style="font-size: 20px; line-height: 1.6; margin: 40px 0;">
+                    <p>Let's practice with a few examples first.</p>
+                    <p>Remember:</p>
+                    <ul style="text-align: left; max-width: 500px; margin: 20px auto;">
+                        <li>Read each word or letter out loud</li>
+                        <li>The administrator will press 1 for correct or 0 for incorrect</li>
+                        <li>Press the spacebar to continue to the next item</li>
+                    </ul>
+                    <p style="margin-top: 30px;"><strong>Ready to practice?</strong></p>
+                </div>
+            </div>
+        `,
+        choices: ['Start Practice']
+    };
+}
+
+function createPracticeComplete() {
+    return {
+        type: HtmlButtonResponsePlugin,
+        stimulus: `
+            ${ORR_STYLES}
+            <div style="max-width: 700px; margin: auto; text-align: center;">
+                <h1>Practice Complete!</h1>
+                <div style="font-size: 20px; line-height: 1.6; margin: 40px 0;">
+                    <p>Great job! You've completed the practice trials.</p>
+                    <p>Now we'll begin the actual test.</p>
+                    <p style="margin-top: 30px;"><strong>Ready to start?</strong></p>
+                </div>
+            </div>
+        `,
+        choices: ['Begin Test']
+    };
 }
 
 /* Timeline component generating functions */
@@ -765,24 +1023,63 @@ function createMainInstructions() {
     };
 }
 
-function createTestTrial(jsPsych: JsPsych) {
+function createTestTrial(jsPsych: JsPsych, isPractice: boolean = false) {
     return {
         type: HtmlKeyboardResponsePlugin,
         stimulus: function() {
-            state.currentItem = selectNextItem(state.abilityEstimate, state.itemsAdministered);
-            
-            if (!state.currentItem || shouldStopTest(state.responses)) {
-                return '<div style="display:none;">Test Complete</div>';
+            if (isPractice) {
+                const practiceItems = getPracticeItems();
+                const practiceIndex = state.practiceResponses.length;
+                if (practiceIndex >= practiceItems.length) {
+                    return '<div style="display:none;">Practice Complete</div>';
+                }
+                state.currentItem = practiceItems[practiceIndex];
+            } else {
+                state.currentItem = selectNextItem(state.abilityEstimate, state.itemsAdministered);
+                
+                if (!state.currentItem || shouldStopTest(state.responses)) {
+                    return '<div style="display:none;">Test Complete</div>';
+                }
             }
             
             return createItemStimulus(state.currentItem);
         },
-        choices: ['1', '0'],
+        choices: ['1', '0', 'ArrowUp', 'ArrowDown'],
         data: {
-            phase: 'scoring'
+            phase: 'scoring',
+            isPractice: isPractice
         },
         on_load: function() {
             if (!state.currentItem) return;
+            
+            // Store current audio for repeat functionality
+            (window as any).currentAudioText = '';
+            (window as any).repeatAudio = function() {
+                if ((window as any).currentAudioText) {
+                    playAudio((window as any).currentAudioText, (window as any).currentAudioIPA);
+                }
+            };
+            
+            // Add keyboard listener for 'R' key and 'P' for pause
+            const handleKeyPress = (e: KeyboardEvent) => {
+                if (e.key === 'r' || e.key === 'R') {
+                    e.preventDefault();
+                    (window as any).repeatAudio();
+                } else if (e.key === 'p' || e.key === 'P') {
+                    e.preventDefault();
+                    // Set pause flag
+                    (window as any).pauseRequested = true;
+                    // Force end the current trial with a special response
+                    jsPsych.finishTrial({
+                        response: 'PAUSE',
+                        rt: null
+                    });
+                }
+            };
+            document.addEventListener('keydown', handleKeyPress);
+            
+            // Store handler for cleanup
+            (window as any).currentKeyHandler = handleKeyPress;
             
             if (state.currentItem.type === 'letter_array' && state.currentItem.target) {
                 // Don't read instructions, only setup click handlers
@@ -797,31 +1094,60 @@ function createTestTrial(jsPsych: JsPsych) {
                 // Read only the word or letter aloud after a short delay
                 setTimeout(() => {
                     if (state.currentItem && typeof state.currentItem.content === 'string') {
-                        playAudio(state.currentItem.content);
+                        (window as any).currentAudioText = state.currentItem.content;
+                        (window as any).currentAudioIPA = state.currentItem.ipa;
+                        playAudio(state.currentItem.content, state.currentItem.ipa);
                     }
                 }, 500);
             }
-            
-            // Removed prompt audio - only reading test words
         },
         on_finish: function(data: TrialData) {
+            // Clean up event handler
+            if ((window as any).currentKeyHandler) {
+                document.removeEventListener('keydown', (window as any).currentKeyHandler);
+                (window as any).currentKeyHandler = null;
+            }
+            
             if (state.currentItem) {
-                data.item_id = state.currentItem.id;
-                data.item_content = state.currentItem.content;
-                data.item_type = state.currentItem.type;
-                data.item_difficulty = state.currentItem.difficulty;
-                data.correct = data.response === '1';
+                // Handle pause
+                if (data.response === 'PAUSE' || (window as any).pauseRequested) {
+                    data.pause_requested = true;
+                    (window as any).pauseRequested = false;
+                    // Don't record this as a response
+                    return;
+                }
+                
+                // Map arrow keys to scores
+                let scoreResponse = data.response;
+                if (data.response === 'ArrowUp') scoreResponse = '1';
+                else if (data.response === 'ArrowDown') scoreResponse = '0';
+                
+                if (scoreResponse === '1' || scoreResponse === '0') {
+                    data.item_id = state.currentItem.id;
+                    data.item_content = state.currentItem.content;
+                    data.item_type = state.currentItem.type;
+                    data.item_difficulty = state.currentItem.difficulty;
+                    data.correct = scoreResponse === '1';
+                    data.isPractice = isPractice;
+                }
             }
         }
     };
 }
 
-function createSpacebarTrial(jsPsych: JsPsych) {
+function createSpacebarTrial(jsPsych: JsPsych, isPractice: boolean = false) {
     return {
         type: HtmlKeyboardResponsePlugin,
         stimulus: function() {
-            if (!state.currentItem || shouldStopTest(state.responses)) {
-                return '<div style="display:none;">Test Complete</div>';
+            if (isPractice) {
+                const practiceItems = getPracticeItems();
+                if (state.practiceResponses.length >= practiceItems.length) {
+                    return '<div style="display:none;">Practice Complete</div>';
+                }
+            } else {
+                if (!state.currentItem || shouldStopTest(state.responses)) {
+                    return '<div style="display:none;">Test Complete</div>';
+                }
             }
             
             const prevData = jsPsych.data.get().filter({phase: 'scoring'}).last(1).values()[0] as TrialData;
@@ -829,7 +1155,7 @@ function createSpacebarTrial(jsPsych: JsPsych) {
             
             let html = `${ORR_STYLES}<div class="orr-container">`;
             
-            if (state.currentItem.type === 'letter_array' && state.currentItem.target) {
+            if (state.currentItem && state.currentItem.type === 'letter_array' && state.currentItem.target) {
                 html += `<div class="orr-instructions">Point to the letter ${state.currentItem.target}</div>`;
                 html += '<div class="orr-letter-array">';
                 (state.currentItem.content as string[]).forEach((letter) => {
@@ -838,10 +1164,13 @@ function createSpacebarTrial(jsPsych: JsPsych) {
                     </div>`;
                 });
                 html += '</div>';
-            } else {
+            } else if (state.currentItem) {
                 const itemType = state.currentItem.type === 'letter' ? 'letter' : 'word';
                 html += `<div class="orr-instructions">What is this ${itemType}?</div>`;
                 html += `<div class="orr-item">${state.currentItem.content}</div>`;
+                if (state.currentItem.ipa) {
+                    html += `<div style="font-size: 24px; color: #666; margin-top: 10px; font-style: italic;">${state.currentItem.ipa}</div>`;
+                }
             }
             
             const scoreClass = correct ? 'orr-score-correct' : 'orr-score-incorrect';
@@ -862,29 +1191,49 @@ function createSpacebarTrial(jsPsych: JsPsych) {
         },
         choices: [' ', 'ArrowLeft'],
         data: {
-            phase: 'spacebar'
+            phase: 'spacebar',
+            isPractice: isPractice
         },
         on_finish: function(data: TrialData) {
             if (!state.currentItem) return;
             
             const prevData = jsPsych.data.get().filter({phase: 'scoring'}).last(1).values()[0] as TrialData;
             
-            if (data.response === 'ArrowLeft' && state.responses.length > 0) {
-                // Go back functionality
-                state.responses.pop();
-                state.itemsAdministered.pop();
-                state.abilityEstimate = updateAbilityEstimate(state.responses);
+            // Don't record anything if pause was requested
+            if (prevData.pause_requested || prevData.response === 'PAUSE') {
+                return;
+            }
+            
+            if (isPractice) {
+                if (data.response === 'ArrowLeft' && state.practiceResponses.length > 0) {
+                    // Go back functionality for practice
+                    state.practiceResponses.pop();
+                } else {
+                    // Record practice response
+                    state.practiceResponses.push({
+                        itemId: state.currentItem.id,
+                        correct: prevData.correct || false,
+                        rt: prevData.rt || 0
+                    });
+                }
             } else {
-                // Record response
-                state.responses.push({
-                    itemId: state.currentItem.id,
-                    correct: prevData.correct || false,
-                    rt: prevData.rt || 0
-                });
-                state.itemsAdministered.push(state.currentItem.id);
-                
-                // Update ability estimate
-                state.abilityEstimate = updateAbilityEstimate(state.responses);
+                if (data.response === 'ArrowLeft' && state.responses.length > 0) {
+                    // Go back functionality
+                    state.responses.pop();
+                    state.itemsAdministered.pop();
+                    state.abilityEstimate = updateAbilityEstimate(state.responses);
+                } else {
+                    // Record response
+                    state.responses.push({
+                        itemId: state.currentItem.id,
+                        correct: prevData.correct || false,
+                        rt: prevData.rt || 0
+                    });
+                    state.itemsAdministered.push(state.currentItem.id);
+                    
+                    // Update ability estimate
+                    state.abilityEstimate = updateAbilityEstimate(state.responses);
+                }
             }
         }
     };
@@ -900,8 +1249,55 @@ function createResults(jsPsych: JsPsych) {
             const finalAbility = updateAbilityEstimate(state.responses);
             const finalSE = calculateStandardError(state.responses);
             
+            // Prepare export data
+            const exportData = {
+                participant: state.participantData,
+                summary: {
+                    totalItems: state.responses.length,
+                    correctResponses: totalCorrect,
+                    accuracy: parseFloat(accuracy as string),
+                    finalAbility: finalAbility,
+                    standardError: finalSE,
+                    testDate: new Date().toISOString()
+                },
+                responses: state.responses.map(resp => {
+                    const item = CAT_CONFIG.items.find(i => i.id === resp.itemId);
+                    return {
+                        itemId: resp.itemId,
+                        itemContent: item?.content,
+                        itemType: item?.type,
+                        itemDifficulty: item?.difficulty,
+                        correct: resp.correct,
+                        responseTime: resp.rt
+                    };
+                })
+            };
+            
+            // Store export data in window for download functions
+            (window as any).orrExportData = exportData;
+            
             return `
                 ${ORR_STYLES}
+                <style>
+                    .export-buttons {
+                        margin: 20px auto;
+                        display: flex;
+                        gap: 10px;
+                        justify-content: center;
+                    }
+                    .export-button {
+                        padding: 10px 20px;
+                        background: #0066cc;
+                        color: white;
+                        border: none;
+                        border-radius: 5px;
+                        cursor: pointer;
+                        font-size: 16px;
+                    }
+                    .export-button:hover {
+                        background: #0052a3;
+                    }
+                </style>
                 <div style="max-width: 700px; margin: auto; text-align: center;">
                     <h1>Test Complete!</h1>
                     <h2>Summary Results</h2>
@@ -927,10 +1323,49 @@ function createResults(jsPsych: JsPsych) {
                             <td style="padding: 15px;">${finalSE.toFixed(3)}</td>
                         </tr>
                     </table>
+                    <div class="export-buttons">
+                        <button class="export-button" onclick="downloadCSV()">Download CSV</button>
+                        <button class="export-button" onclick="downloadJSON()">Download JSON</button>
+                    </div>
                 </div>
             `;
         },
-        choices: ['View Data']
+        choices: ['View Data'],
+        on_load: function() {
+            // Add download functions to window
+            (window as any).downloadCSV = function() {
+                const data = (window as any).orrExportData;
+                let csv = 'Item ID,Item Content,Item Type,Difficulty,Correct,Response Time\n';
+                data.responses.forEach((resp: any) => {
+                    csv += `${resp.itemId},"${resp.itemContent}",${resp.itemType},${resp.itemDifficulty},${resp.correct},${resp.responseTime}\n`;
+                });
+                csv += `\nSummary\n`;
+                csv += `Total Items,${data.summary.totalItems}\n`;
+                csv += `Correct Responses,${data.summary.correctResponses}\n`;
+                csv += `Accuracy,${data.summary.accuracy}%\n`;
+                csv += `Final Ability,${data.summary.finalAbility}\n`;
+                csv += `Standard Error,${data.summary.standardError}\n`;
+                csv += `Age,${data.participant.age}\n`;
+                csv += `Education,${data.participant.education}\n`;
+                
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `orr_results_${new Date().toISOString().split('T')[0]}.csv`;
+                a.click();
+            };
+            
+            (window as any).downloadJSON = function() {
+                const data = (window as any).orrExportData;
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `orr_results_${new Date().toISOString().split('T')[0]}.json`;
+                a.click();
+            };
+        }
     };
 }
 
@@ -955,6 +1390,14 @@ export async function createTimeline(
 ): Promise<Record<string, any>[]> {
     // Reset state for new timeline
     resetState();
+    
+    // Load voices
+    if ('speechSynthesis' in window) {
+        // Load voices (some browsers need this)
+        speechSynthesis.getVoices();
+        // Wait a bit for voices to load
+        await new Promise(resolve => setTimeout(resolve, 100));
+    }
     
     // Update CAT config with parameters
     CAT_CONFIG.minItems = minItems;
@@ -981,14 +1424,74 @@ export async function createTimeline(
     // Setup instructions
     if (showInstructions) {
         timeline.push(createSetupInstructions());
+        
+        // Practice trials
+        timeline.push(createPracticeInstructions());
+        
+        // Practice loop with pause handling
+        const practiceLoop = {
+            timeline: [
+                // Conditional pause screen
+                {
+                    timeline: [createPauseScreen()],
+                    conditional_function: function() {
+                        const lastTrial = jsPsych.data.get().last(1).values()[0];
+                        return lastTrial && lastTrial.pause_requested === true;
+                    }
+                },
+                createTestTrial(jsPsych, true),
+                // Only show spacebar trial if not paused
+                {
+                    timeline: [createSpacebarTrial(jsPsych, true)],
+                    conditional_function: function() {
+                        const lastTrial = jsPsych.data.get().last(1).values()[0];
+                        return !lastTrial.pause_requested;
+                    }
+                }
+            ],
+            loop_function: function() {
+                state.isPractice = true;
+                return state.practiceResponses.length < getPracticeItems().length;
+            }
+        };
+        
+        timeline.push(practiceLoop);
+        timeline.push(createPracticeComplete());
+        
+        // Reset isPractice flag before main test
+        timeline.push({
+            type: HtmlButtonResponsePlugin,
+            stimulus: '',
+            choices: [],
+            trial_duration: 0,
+            on_finish: function() {
+                state.isPractice = false;
+            }
+        });
+        
         timeline.push(createMainInstructions());
     }
     
-    // Main test loop
+    // Main test loop with pause handling
     const testLoop = {
         timeline: [
-            createTestTrial(jsPsych),
-            createSpacebarTrial(jsPsych)
+            // Conditional pause screen
+            {
+                timeline: [createPauseScreen()],
+                conditional_function: function() {
+                    const lastTrial = jsPsych.data.get().last(1).values()[0];
+                    return lastTrial && lastTrial.pause_requested === true;
+                }
+            },
+            createTestTrial(jsPsych, false),
+            // Only show spacebar trial if not paused
+            {
+                timeline: [createSpacebarTrial(jsPsych, false)],
+                conditional_function: function() {
+                    const lastTrial = jsPsych.data.get().last(1).values()[0];
+                    return !lastTrial.pause_requested;
+                }
+            }
         ],
         loop_function: function() {
             return !shouldStopTest(state.responses) && 
