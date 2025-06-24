@@ -1981,6 +1981,89 @@ function createResults(jsPsych: JsPsych) {
     };
 }
 
+function createDataView(jsPsych: JsPsych) {
+    return {
+        type: HtmlButtonResponsePlugin,
+        stimulus: function() {
+            const data = (window as any).orrExportData;
+            if (!data) return '<div>No data available</div>';
+            
+            let html = `
+                ${ORR_STYLES}
+                <style>
+                    .data-view {
+                        max-width: 1200px;
+                        margin: auto;
+                        padding: 20px;
+                    }
+                    .data-table {
+                        width: 100%;
+                        border-collapse: collapse;
+                        margin: 20px 0;
+                    }
+                    .data-table th, .data-table td {
+                        border: 1px solid #ddd;
+                        padding: 8px;
+                        text-align: left;
+                    }
+                    .data-table th {
+                        background: #f0f0f0;
+                        font-weight: bold;
+                    }
+                    .data-table tr:nth-child(even) {
+                        background: #f9f9f9;
+                    }
+                </style>
+                <div class="data-view">
+                    <h2>Full Response Data</h2>
+                    <div class="export-buttons">
+                        <button class="export-button" onclick="downloadCSV()">Download CSV</button>
+                        <button class="export-button" onclick="downloadJSON()">Download JSON</button>
+                    </div>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Item ID</th>
+                                <th>Content</th>
+                                <th>Type</th>
+                                <th>Difficulty</th>
+                                <th>Response</th>
+                                <th>RT (ms)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+            
+            data.responses.forEach((resp: any, index: number) => {
+                html += `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td>${resp.itemId}</td>
+                        <td>${resp.itemContent}</td>
+                        <td>${resp.itemType}</td>
+                        <td>${resp.itemDifficulty?.toFixed(2) || '-'}</td>
+                        <td>${resp.correct ? '✓' : '✗'}</td>
+                        <td>${resp.responseTime?.toFixed(0) || '-'}</td>
+                    </tr>
+                `;
+            });
+            
+            html += `
+                        </tbody>
+                    </table>
+                    <p style="text-align: center; margin-top: 30px;">
+                        <em>Thank you for participating!</em>
+                    </p>
+                </div>
+            `;
+            
+            return html;
+        },
+        choices: ['End Experiment']
+    };
+}
+
 /* Main timeline creation function */
 export async function createTimeline(
     jsPsych: JsPsych,
@@ -2163,6 +2246,7 @@ export async function createTimeline(
     // Results
     if (showResults && !isExperimenterWindow()) {
         timeline.push(createResults(jsPsych));
+        timeline.push(createDataView(jsPsych));
     }
     
     // For experimenter window, add a waiting screen

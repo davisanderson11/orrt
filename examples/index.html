@@ -267,11 +267,11 @@
                     </button>
                 </div>
                 <div style="margin-top: 20px; padding: 15px; background: #f8f8f8; border-radius: 5px;">
-                    <p style="margin: 0; color: #666;">The participant will score their own responses using the keyboard:</p>
+                    <p style="margin: 0; color: #666;">Score responses using your keyboard:</p>
                     <ul style="margin: 10px 0 0 20px; color: #666;">
                         <li>Press <strong>1</strong> or <strong>↑</strong> for Correct</li>
                         <li>Press <strong>0</strong> or <strong>↓</strong> for Incorrect</li>
-                        <li>Press <strong>Space</strong> to continue</li>
+                        <li>Press <strong>Space</strong> to continue to next item</li>
                     </ul>
                 </div>
             </div>
@@ -302,6 +302,9 @@
         <div class="keyboard-shortcuts">
             <h3>Experimenter Keyboard Shortcuts</h3>
             <div class="shortcut-grid">
+                <div class="shortcut"><span class="key">1</span> or <span class="key">↑</span> Score Correct</div>
+                <div class="shortcut"><span class="key">0</span> or <span class="key">↓</span> Score Incorrect</div>
+                <div class="shortcut"><span class="key">Space</span> Continue to Next</div>
                 <div class="shortcut"><span class="key">R</span> Repeat Audio</div>
                 <div class="shortcut"><span class="key">P</span> Pause</div>
             </div>
@@ -474,7 +477,28 @@
         document.addEventListener('keydown', (e) => {
             if (!experimentStarted) return;
             
-            if (e.key === 'r' || e.key === 'R') {
+            // Scoring controls
+            if (e.key === '1' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                console.log('Experimenter pressed correct');
+                participantWindow.postMessage({
+                    type: 'score',
+                    correct: true
+                }, '*');
+            } else if (e.key === '0' || e.key === 'ArrowDown') {
+                e.preventDefault();
+                console.log('Experimenter pressed incorrect');
+                participantWindow.postMessage({
+                    type: 'score',
+                    correct: false
+                }, '*');
+            } else if (e.key === ' ') {
+                e.preventDefault();
+                console.log('Experimenter pressed spacebar');
+                participantWindow.postMessage({
+                    type: 'continue'
+                }, '*');
+            } else if (e.key === 'r' || e.key === 'R') {
                 e.preventDefault();
                 repeatAudio();
             } else if (e.key === 'p' || e.key === 'P') {
