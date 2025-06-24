@@ -481,6 +481,10 @@
             if (e.key === '1' || e.key === 'ArrowUp') {
                 e.preventDefault();
                 console.log('Experimenter pressed correct');
+                // Focus participant window before sending message
+                if (participantWindow && !participantWindow.closed) {
+                    participantWindow.focus();
+                }
                 participantWindow.postMessage({
                     type: 'score',
                     correct: true
@@ -488,6 +492,10 @@
             } else if (e.key === '0' || e.key === 'ArrowDown') {
                 e.preventDefault();
                 console.log('Experimenter pressed incorrect');
+                // Focus participant window before sending message
+                if (participantWindow && !participantWindow.closed) {
+                    participantWindow.focus();
+                }
                 participantWindow.postMessage({
                     type: 'score',
                     correct: false
@@ -495,6 +503,10 @@
             } else if (e.key === ' ') {
                 e.preventDefault();
                 console.log('Experimenter pressed spacebar');
+                // Focus participant window before sending message
+                if (participantWindow && !participantWindow.closed) {
+                    participantWindow.focus();
+                }
                 participantWindow.postMessage({
                     type: 'continue'
                 }, '*');

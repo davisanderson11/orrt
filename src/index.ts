@@ -277,39 +277,57 @@ if (typeof window !== 'undefined' && window.name === 'participant') {
         console.log('Global participant listener received:', event.data.type);
         
         if (event.data.type === 'score') {
-            // Store the score for use when jsPsych asks for it
-            (window as any).pendingResponse = event.data.correct ? '1' : '0';
-            console.log('Score stored:', event.data.correct);
+            // Store the response and use jsPsych API
+            const response = event.data.correct ? '1' : '0';
+            console.log('Score received:', event.data.correct, 'Response:', response);
             
-            // If we're in a trial, try to end it with the response
             const jsPsych = (window as any).experimentJsPsych;
-            if (jsPsych && jsPsych.getCurrentTrial()) {
-                const currentTrial = jsPsych.getCurrentTrial();
-                if (currentTrial.type.info.name === 'html-keyboard-response' && 
-                    jsPsych.getProgress().current_trial_global > 0) {
-                    console.log('Ending trial with response:', (window as any).pendingResponse);
-                    jsPsych.finishTrial({
-                        response: (window as any).pendingResponse,
-                        rt: performance.now()
-                    });
+            if (jsPsych) {
+                const trial = jsPsych.getCurrentTrial();
+                if (trial && trial.type.info.name === 'html-keyboard-response') {
+                    // Get the keyboard listener from jsPsych's plugin API
+                    const keyboardListener = jsPsych.pluginAPI.getKeyboardResponse;
+                    if (keyboardListener && typeof keyboardListener === 'function') {
+                        // Call the keyboard response handler directly
+                        keyboardListener({
+                            callback_function: (info: any) => {
+                                console.log('Response registered:', info);
+                            },
+                            valid_responses: ['1', '0', 'ArrowUp', 'ArrowDown'],
+                            rt_method: 'performance',
+                            persist: false,
+                            allow_held_key: false
+                        });
+                    }
+                    
+                    // Force finish the trial with our response
+                    setTimeout(() => {
+                        if (jsPsych.getCurrentTrial()) {
+                            jsPsych.finishTrial({
+                                response: response,
+                                rt: performance.now() - trial.trial_start_time
+                            });
+                        }
+                    }, 50);
                 }
             }
         } else if (event.data.type === 'continue') {
-            // Trigger continue
+            // Use jsPsych API for continue
+            console.log('Continue received');
+            
             const jsPsych = (window as any).experimentJsPsych;
-            if (jsPsych && jsPsych.getCurrentTrial()) {
-                const currentTrial = jsPsych.getCurrentTrial();
-                // Check if we're in the spacebar trial
-                if (currentTrial.type.info.name === 'html-keyboard-response' && 
-                    currentTrial.trial && 
-                    currentTrial.trial.choices && 
-                    Array.isArray(currentTrial.trial.choices) &&
-                    currentTrial.trial.choices.includes(' ')) {
-                    console.log('Continuing from spacebar trial');
-                    jsPsych.finishTrial({
-                        response: ' ',
-                        rt: performance.now()
-                    });
+            if (jsPsych) {
+                const trial = jsPsych.getCurrentTrial();
+                if (trial && trial.type.info.name === 'html-keyboard-response') {
+                    // Force finish the spacebar trial
+                    setTimeout(() => {
+                        if (jsPsych.getCurrentTrial()) {
+                            jsPsych.finishTrial({
+                                response: ' ',
+                                rt: performance.now() - trial.trial_start_time
+                            });
+                        }
+                    }, 50);
                 }
             }
         } else if (event.data.type === 'repeat') {
@@ -1562,13 +1580,9 @@ function createSetupInstructions() {
                 <h1>Setup Instructions</h1>
                 
                 <div class="setup-section">
-                    <h3>Keyboard Controls</h3>
-                    <ul>
-                        <li><strong>1</strong> - Mark response as correct</li>
-                        <li><strong>0</strong> - Mark response as incorrect</li>
-                        <li><strong>Spacebar</strong> - Move to next item (after scoring)</li>
-                        <li><strong>Left Arrow</strong> - Go back one item (when available)</li>
-                    </ul>
+                    <h3>Instructions</h3>
+                    <p>The experimenter will control the test using their keyboard.</p>
+                    <p>Participants should focus on reading the words aloud.</p>
                 </div>
                 
                 <p style="margin-top: 30px; color: #666;">
@@ -1622,6 +1636,7 @@ function createTestTrial(jsPsych: JsPsych, isPractice: boolean = false) {
             return createItemStimulus(state.currentItem);
         },
         choices: ['1', '0', 'ArrowUp', 'ArrowDown'],
+        trial_duration: null, // Wait indefinitely for response
         data: {
             phase: 'scoring',
             isPractice: isPractice
@@ -1791,6 +1806,7 @@ function createSpacebarTrial(jsPsych: JsPsych, isPractice: boolean = false) {
             return html;
         },
         choices: [' ', 'ArrowLeft'],
+        trial_duration: null, // Wait indefinitely for response
         data: {
             phase: 'spacebar',
             isPractice: isPractice
