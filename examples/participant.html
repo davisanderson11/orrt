@@ -42,7 +42,7 @@
         
         const timeline = await jsPsychTimelineOrrt.createTimeline(jsPsych, {
           showInstructions: false,  // Skip instructions for participant
-          showResults: false        // Results shown in experimenter window
+          showResults: true         // Show completion message
         });
         jsPsych.run(timeline);
       } else {

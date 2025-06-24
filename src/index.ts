@@ -301,7 +301,9 @@ if (typeof window !== 'undefined' && window.name === 'participant') {
                 const currentTrial = jsPsych.getCurrentTrial();
                 // Check if we're in the spacebar trial
                 if (currentTrial.type.info.name === 'html-keyboard-response' && 
+                    currentTrial.trial && 
                     currentTrial.trial.choices && 
+                    Array.isArray(currentTrial.trial.choices) &&
                     currentTrial.trial.choices.includes(' ')) {
                     console.log('Continuing from spacebar trial');
                     jsPsych.finishTrial({

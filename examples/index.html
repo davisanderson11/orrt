@@ -257,24 +257,23 @@
             </div>
 
             <div class="section">
-                <h2>Scoring Controls</h2>
+                <h2>Experiment Controls</h2>
                 <div class="control-buttons">
-                    <button class="control-button score-correct" onclick="scoreItem(true)" disabled id="score-correct">
-                        ✓ Correct
-                    </button>
-                    <button class="control-button score-incorrect" onclick="scoreItem(false)" disabled id="score-incorrect">
-                        ✗ Incorrect
-                    </button>
                     <button class="control-button action-button" onclick="repeatAudio()" disabled id="repeat-button">
-                        🔊 Repeat Audio
+                        🔊 Repeat Audio (R)
                     </button>
                     <button class="control-button action-button" onclick="pauseExperiment()" disabled id="pause-button">
-                        ⏸ Pause
+                        ⏸ Pause (P)
                     </button>
                 </div>
-                <button class="control-button action-button" onclick="continueNext()" disabled id="continue-button" style="width: 100%; margin-top: 15px;">
-                    Continue → (Space)
-                </button>
+                <div style="margin-top: 20px; padding: 15px; background: #f8f8f8; border-radius: 5px;">
+                    <p style="margin: 0; color: #666;">The participant will score their own responses using the keyboard:</p>
+                    <ul style="margin: 10px 0 0 20px; color: #666;">
+                        <li>Press <strong>1</strong> or <strong>↑</strong> for Correct</li>
+                        <li>Press <strong>0</strong> or <strong>↓</strong> for Incorrect</li>
+                        <li>Press <strong>Space</strong> to continue</li>
+                    </ul>
+                </div>
             </div>
 
             <div class="section" id="statistics-section">
@@ -301,14 +300,10 @@
         </div>
 
         <div class="keyboard-shortcuts">
-            <h3>Keyboard Shortcuts</h3>
+            <h3>Experimenter Keyboard Shortcuts</h3>
             <div class="shortcut-grid">
-                <div class="shortcut"><span class="key">1</span> or <span class="key">↑</span> Correct</div>
-                <div class="shortcut"><span class="key">0</span> or <span class="key">↓</span> Incorrect</div>
-                <div class="shortcut"><span class="key">Space</span> Continue</div>
                 <div class="shortcut"><span class="key">R</span> Repeat Audio</div>
                 <div class="shortcut"><span class="key">P</span> Pause</div>
-                <div class="shortcut"><span class="key">←</span> Go Back</div>
             </div>
         </div>
     </div>
@@ -383,8 +378,6 @@
         }
 
         function enableControls() {
-            document.getElementById('score-correct').disabled = false;
-            document.getElementById('score-incorrect').disabled = false;
             document.getElementById('repeat-button').disabled = false;
             document.getElementById('pause-button').disabled = false;
         }
@@ -461,12 +454,6 @@
                     document.getElementById('ipa-display').textContent = event.data.ipa || '';
                     document.getElementById('item-type').textContent = event.data.itemType || '-';
                     document.getElementById('progress').textContent = event.data.progress || '-';
-                    
-                    // Reset scoring state
-                    currentResponse = null;
-                    document.getElementById('continue-button').disabled = true;
-                    document.getElementById('score-correct').disabled = false;
-                    document.getElementById('score-incorrect').disabled = false;
                 } else if (event.data.type === 'stats-update' || event.data.type === 'experiment-stats') {
                     document.getElementById('total-items').textContent = event.data.totalResponses || event.data.totalItems || '0';
                     document.getElementById('correct-count').textContent = event.data.correctResponses || event.data.correctCount || '0';
@@ -487,22 +474,7 @@
         document.addEventListener('keydown', (e) => {
             if (!experimentStarted) return;
             
-            if (e.key === '1' || e.key === 'ArrowUp') {
-                e.preventDefault();
-                if (!document.getElementById('score-correct').disabled) {
-                    scoreItem(true);
-                }
-            } else if (e.key === '0' || e.key === 'ArrowDown') {
-                e.preventDefault();
-                if (!document.getElementById('score-incorrect').disabled) {
-                    scoreItem(false);
-                }
-            } else if (e.key === ' ') {
-                e.preventDefault();
-                if (!document.getElementById('continue-button').disabled) {
-                    continueNext();
-                }
-            } else if (e.key === 'r' || e.key === 'R') {
+            if (e.key === 'r' || e.key === 'R') {
                 e.preventDefault();
                 repeatAudio();
             } else if (e.key === 'p' || e.key === 'P') {
