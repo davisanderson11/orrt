@@ -743,44 +743,83 @@ function ipaToSpeechApproximation(ipa: string): string {
     return '';
 }
 
-// Convert IPA to approximate pronunciation for TTS
-function ipaToSpeakable(ipa: string): string {
-    // Basic IPA to speech approximations
+// Convert IPA to phonetic spelling that TTS can pronounce
+function ipaToPhonetic(ipa: string): string {
+    // Remove IPA delimiters
+    let result = ipa.replace(/[\/\[\]]/g, '');
+    
+    // IPA to phonetic approximations for TTS
     const ipaMap: {[key: string]: string} = {
-        'æ': 'a as in cat',
-        'ɑ': 'ah',
-        'ə': 'uh',
-        'ɛ': 'eh',
-        'ɪ': 'ih',
+        // Vowels
         'i': 'ee',
+        'ɪ': 'ih',
+        'e': 'ay',
+        'ɛ': 'eh',
+        'æ': 'a',
+        'ɑ': 'ah',
         'ɔ': 'aw',
-        'ʊ': 'oo as in book',
+        'o': 'oh',
+        'ʊ': 'oo',
         'u': 'oo',
-        'ʌ': 'uh as in cup',
+        'ʌ': 'uh',
+        'ə': 'uh',
+        'ɚ': 'er',
+        'ɝ': 'ur',
+        
+        // Diphthongs
         'eɪ': 'ay',
         'aɪ': 'eye',
+        'ɔɪ': 'oy',
         'aʊ': 'ow',
         'oʊ': 'oh',
-        'ɔɪ': 'oy',
-        'θ': 'th as in thin',
-        'ð': 'th as in this',
+        'ɪə': 'eer',
+        'eə': 'air',
+        'ʊə': 'oor',
+        
+        // Consonants
+        'p': 'p',
+        'b': 'b',
+        't': 't',
+        'd': 'd',
+        'k': 'k',
+        'g': 'g',
+        'f': 'f',
+        'v': 'v',
+        'θ': 'th',
+        'ð': 'th',
+        's': 's',
+        'z': 'z',
         'ʃ': 'sh',
         'ʒ': 'zh',
+        'h': 'h',
         'tʃ': 'ch',
         'dʒ': 'j',
+        'm': 'm',
+        'n': 'n',
         'ŋ': 'ng',
+        'l': 'l',
         'ɹ': 'r',
         'j': 'y',
-        'ˈ': '', // primary stress - remove
+        'w': 'w',
+        
+        // Stress and syllable markers
+        'ˈ': '', // primary stress - remove for now
         'ˌ': '', // secondary stress - remove
-        '.': ' ' // syllable boundary
+        '.': ' ', // syllable boundary
+        'ː': '', // length marker - remove
     };
     
-    // Replace IPA symbols with approximations
-    let result = ipa;
-    for (const [symbol, replacement] of Object.entries(ipaMap)) {
-        result = result.replace(new RegExp(symbol, 'g'), replacement);
+    // Apply replacements from longest to shortest to avoid partial replacements
+    const sortedKeys = Object.keys(ipaMap).sort((a, b) => b.length - a.length);
+    
+    for (const symbol of sortedKeys) {
+        const replacement = ipaMap[symbol];
+        // Use global replacement
+        result = result.split(symbol).join(replacement);
     }
+    
+    // Clean up extra spaces
+    result = result.replace(/\s+/g, ' ').trim();
     
     return result;
 }
@@ -789,20 +828,44 @@ function playAudio(text: string, ipa?: string) {
     if ('speechSynthesis' in window) {
         speechSynthesis.cancel();
         
-        // For now, just speak the word normally
-        // IPA pronunciation would require a specialized TTS engine
-        console.log('Playing audio for:', text, 'IPA:', ipa);
+        // Just read the actual word - TTS does much better with real words
+        console.log('Playing audio - Word:', text, 'IPA:', ipa);
         const utterance = new SpeechSynthesisUtterance(text);
         
-        // Try to find an English voice that might better support phonetics
+        // Get available voices
         const voices = speechSynthesis.getVoices();
-        const englishVoice = voices.find(voice => 
-            voice.lang.startsWith('en-') && 
-            (voice.name.includes('Google') || voice.name.includes('Microsoft') || voice.name.includes('Enhanced'))
-        ) || voices.find(voice => voice.lang.startsWith('en-'));
         
-        if (englishVoice) {
-            utterance.voice = englishVoice;
+        // Priority order for voice selection
+        const voicePreferences = [
+            // Best quality voices
+            (v: SpeechSynthesisVoice) => v.name.includes('Google') && v.lang.startsWith('en-US'),
+            (v: SpeechSynthesisVoice) => v.name.includes('Microsoft') && v.lang.startsWith('en-US'),
+            (v: SpeechSynthesisVoice) => v.name.includes('Samantha') && v.lang.startsWith('en-US'), // macOS
+            (v: SpeechSynthesisVoice) => v.name.includes('Alex') && v.lang.startsWith('en-US'), // macOS
+            // Female voices often clearer
+            (v: SpeechSynthesisVoice) => v.name.includes('Female') && v.lang.startsWith('en-'),
+            (v: SpeechSynthesisVoice) => v.name.includes('Zira') && v.lang.startsWith('en-'), // Windows
+            // Any enhanced/premium voice
+            (v: SpeechSynthesisVoice) => v.name.includes('Enhanced') && v.lang.startsWith('en-'),
+            (v: SpeechSynthesisVoice) => v.name.includes('Premium') && v.lang.startsWith('en-'),
+            // Any US English
+            (v: SpeechSynthesisVoice) => v.lang === 'en-US',
+            // Any English
+            (v: SpeechSynthesisVoice) => v.lang.startsWith('en-')
+        ];
+        
+        // Find the best available voice
+        let selectedVoice = null;
+        for (const preference of voicePreferences) {
+            selectedVoice = voices.find(preference);
+            if (selectedVoice) break;
+        }
+        
+        if (selectedVoice) {
+            utterance.voice = selectedVoice;
+            console.log('Selected voice:', selectedVoice.name, selectedVoice.lang);
+        } else {
+            console.log('Using default voice');
         }
         
         // Adjust settings based on content type
@@ -823,7 +886,28 @@ function playAudio(text: string, ipa?: string) {
             utterance.volume = 0.9;
         }
         
-        speechSynthesis.speak(utterance);
+        // Add error handling
+        utterance.onerror = (event) => {
+            console.error('Speech synthesis error:', event);
+        };
+        
+        utterance.onstart = () => {
+            console.log('Started speaking:', text);
+        };
+        
+        utterance.onend = () => {
+            console.log('Finished speaking:', text);
+        };
+        
+        // Ensure we're not paused
+        if (speechSynthesis.paused) {
+            speechSynthesis.resume();
+        }
+        
+        // Speak with a small delay to ensure everything is ready
+        setTimeout(() => {
+            speechSynthesis.speak(utterance);
+        }, 100);
     }
 }
 
@@ -1585,13 +1669,26 @@ function createTestTrial(jsPsych: JsPsych, isPractice: boolean = false) {
                 });
             } else {
                 // Read only the word or letter aloud after a short delay
+                // Use longer delay for first item to ensure voices are loaded
+                const isFirstItem = state.responses.length === 0 && state.practiceResponses.length === 0;
+                const delay = isFirstItem ? 1500 : 500;
+                
+                console.log('Preparing to play audio:', {
+                    isFirstItem,
+                    delay,
+                    item: state.currentItem?.content,
+                    ipa: state.currentItem?.ipa,
+                    totalResponses: state.responses.length,
+                    practiceResponses: state.practiceResponses.length
+                });
+                
                 setTimeout(() => {
                     if (state.currentItem && typeof state.currentItem.content === 'string') {
                         (window as any).currentAudioText = state.currentItem.content;
                         (window as any).currentAudioIPA = state.currentItem.ipa;
                         playAudio(state.currentItem.content, state.currentItem.ipa);
                     }
-                }, 500);
+                }, delay);
             }
         },
         on_finish: function(data: TrialData) {
@@ -1923,12 +2020,27 @@ export async function createTimeline(
         }, 1000);
     }
     
-    // Load voices
+    // Load voices and ensure they're ready
     if ('speechSynthesis' in window) {
         // Load voices (some browsers need this)
-        speechSynthesis.getVoices();
-        // Wait a bit for voices to load
-        await new Promise(resolve => setTimeout(resolve, 100));
+        let voices = speechSynthesis.getVoices();
+        
+        // If voices aren't loaded yet, wait for them
+        if (voices.length === 0) {
+            await new Promise(resolve => {
+                speechSynthesis.addEventListener('voiceschanged', () => {
+                    voices = speechSynthesis.getVoices();
+                    if (voices.length > 0) {
+                        resolve(true);
+                    }
+                }, { once: true });
+                
+                // Timeout after 1 second
+                setTimeout(() => resolve(true), 1000);
+            });
+        }
+        
+        console.log('Voices loaded:', speechSynthesis.getVoices().length);
     }
     
     // Update CAT config with parameters
