@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>jsPsychTimelineOrrt Example</title>
+  <script src="https://unpkg.com/jspsych"></script>
+  <script src="../dist/index.global.js"></script>
+  <!-- Load the published timeline package here, e.g.
+<script src="https://unpkg.com/orrt"></script>
+<script src="../dist/index.global.js"></script> -->
+  <link rel="stylesheet" href="https://unpkg.com/jspsych/css/jspsych.css">
+</head>
+
+<body></body>
+<script>
+  const jsPsych = initJsPsych();
+
+  // Set window name for identification
+  window.name = 'participant';
+
+  // Notify opener that we're loaded
+  if (window.opener && !window.opener.closed) {
+    window.opener.postMessage({ type: 'participant-ready' }, '*');
+  }
+
+  // Listen for messages from experimenter
+  window.addEventListener('message', async (event) => {
+    console.log('Participant received message:', event.data.type);
+    if (event.source === window.opener) {
+      if (event.data.type === 'ping') {
+        // Respond to ping messages to confirm connection
+        event.source.postMessage({ type: 'pong' }, '*');
+      } else if (event.data.type === 'start') {
+        console.log('Starting experiment with data:', event.data.participantData);
+        // Store participant data if provided
+        if (event.data.participantData) {
+          window.participantData = event.data.participantData;
+        }
+        
+        // Clear waiting message
+        document.body.innerHTML = '';
+        
+        const timeline = await jsPsychTimelineOrrt.createTimeline(jsPsych, {
+          showInstructions: false,  // Skip instructions for participant
+          showResults: false        // Results shown in experimenter window
+        });
+        jsPsych.run(timeline);
+      } else {
+        // Forward any other messages to the running experiment
+        console.log('Forwarding message to experiment:', event.data);
+      }
+    }
+  });
+
+  // Show waiting message
+  document.body.innerHTML = `
+    <div style="display: flex; align-items: center; justify-content: center; height: 100vh; font-family: Arial, sans-serif; text-align: center;">
+      <div>
+        <h1>Participant View</h1>
+        <p style="font-size: 24px;">Waiting for experimenter to start the test...</p>
+      </div>
+    </div>
+  `;
+</script>
+
+</html>

@@ -14,6 +14,108 @@ export const ORR_STYLES = `
             justify-content: center;
         }
         
+        /* Experimenter Panel Styles */
+        .experimenter-panel {
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 400px;
+            height: 100vh;
+            background: #f0f0f0;
+            box-shadow: -4px 0 8px rgba(0,0,0,0.1);
+            padding: 20px;
+            overflow-y: auto;
+            z-index: 1000;
+        }
+        
+        .experimenter-panel h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        
+        .exp-section {
+            background: white;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .exp-current-item {
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+            padding: 15px;
+            background: #e8f4f8;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        
+        .exp-ipa {
+            font-size: 20px;
+            color: #666;
+            text-align: center;
+            font-style: italic;
+            margin: 10px 0;
+        }
+        
+        .exp-controls {
+            display: flex;
+            gap: 10px;
+            margin: 10px 0;
+        }
+        
+        .exp-button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+        
+        .exp-button:hover {
+            transform: scale(1.05);
+        }
+        
+        .exp-correct {
+            background: #22c55e;
+            color: white;
+        }
+        
+        .exp-incorrect {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .exp-info {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .exp-info:last-child {
+            border-bottom: none;
+        }
+        
+        .open-participant-btn {
+            width: 100%;
+            padding: 15px;
+            background: #0066cc;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 18px;
+            margin-bottom: 20px;
+        }
+        
+        .open-participant-btn:hover {
+            background: #0052a3;
+        }
+        
         .orr-item {
             font-size: 72px;
             font-weight: bold;
@@ -163,6 +265,72 @@ const DEFAULT_MIN_ITEMS = 40;
 const DEFAULT_MAX_ITEMS = 40;
 const DEFAULT_TARGET_SE = 0.3;
 const PROMPT_DELAY = 5000;
+
+// Global message listener for participant window
+if (typeof window !== 'undefined' && window.name === 'participant') {
+    // Store jsPsych instance globally when it's available
+    (window as any).experimentJsPsych = null;
+    
+    window.addEventListener('message', (event) => {
+        if (event.source !== window.opener) return;
+        
+        console.log('Global participant listener received:', event.data.type);
+        
+        if (event.data.type === 'score') {
+            // Store the score for use when jsPsych asks for it
+            (window as any).pendingResponse = event.data.correct ? '1' : '0';
+            console.log('Score stored:', event.data.correct);
+            
+            // If we're in a trial, try to end it with the response
+            const jsPsych = (window as any).experimentJsPsych;
+            if (jsPsych && jsPsych.getCurrentTrial()) {
+                const currentTrial = jsPsych.getCurrentTrial();
+                if (currentTrial.type.info.name === 'html-keyboard-response' && 
+                    jsPsych.getProgress().current_trial_global > 0) {
+                    console.log('Ending trial with response:', (window as any).pendingResponse);
+                    jsPsych.finishTrial({
+                        response: (window as any).pendingResponse,
+                        rt: performance.now()
+                    });
+                }
+            }
+        } else if (event.data.type === 'continue') {
+            // Trigger continue
+            const jsPsych = (window as any).experimentJsPsych;
+            if (jsPsych && jsPsych.getCurrentTrial()) {
+                const currentTrial = jsPsych.getCurrentTrial();
+                // Check if we're in the spacebar trial
+                if (currentTrial.type.info.name === 'html-keyboard-response' && 
+                    currentTrial.trial.choices && 
+                    currentTrial.trial.choices.includes(' ')) {
+                    console.log('Continuing from spacebar trial');
+                    jsPsych.finishTrial({
+                        response: ' ',
+                        rt: performance.now()
+                    });
+                }
+            }
+        } else if (event.data.type === 'repeat') {
+            // Trigger audio repeat
+            if ((window as any).repeatAudio) {
+                (window as any).repeatAudio();
+            }
+        } else if (event.data.type === 'pause') {
+            // Trigger pause directly
+            if ((window as any).experimentJsPsych) {
+                (window as any).pauseRequested = true;
+                const jsPsych = (window as any).experimentJsPsych;
+                if (jsPsych.getCurrentTrial()) {
+                    jsPsych.finishTrial({
+                        response: 'PAUSE',
+                        rt: null,
+                        pause_requested: true
+                    });
+                }
+            }
+        }
+    });
+}
 
 /* Types */
 interface WordItem {
@@ -573,12 +741,55 @@ function ipaToSpeechApproximation(ipa: string): string {
     return '';
 }
 
+// Convert IPA to approximate pronunciation for TTS
+function ipaToSpeakable(ipa: string): string {
+    // Basic IPA to speech approximations
+    const ipaMap: {[key: string]: string} = {
+        'æ': 'a as in cat',
+        'ɑ': 'ah',
+        'ə': 'uh',
+        'ɛ': 'eh',
+        'ɪ': 'ih',
+        'i': 'ee',
+        'ɔ': 'aw',
+        'ʊ': 'oo as in book',
+        'u': 'oo',
+        'ʌ': 'uh as in cup',
+        'eɪ': 'ay',
+        'aɪ': 'eye',
+        'aʊ': 'ow',
+        'oʊ': 'oh',
+        'ɔɪ': 'oy',
+        'θ': 'th as in thin',
+        'ð': 'th as in this',
+        'ʃ': 'sh',
+        'ʒ': 'zh',
+        'tʃ': 'ch',
+        'dʒ': 'j',
+        'ŋ': 'ng',
+        'ɹ': 'r',
+        'j': 'y',
+        'ˈ': '', // primary stress - remove
+        'ˌ': '', // secondary stress - remove
+        '.': ' ' // syllable boundary
+    };
+    
+    // Replace IPA symbols with approximations
+    let result = ipa;
+    for (const [symbol, replacement] of Object.entries(ipaMap)) {
+        result = result.replace(new RegExp(symbol, 'g'), replacement);
+    }
+    
+    return result;
+}
+
 function playAudio(text: string, ipa?: string) {
     if ('speechSynthesis' in window) {
         speechSynthesis.cancel();
         
-        // Just use the original text - most TTS engines don't support IPA well
-        // and do better with the actual word
+        // For now, just speak the word normally
+        // IPA pronunciation would require a specialized TTS engine
+        console.log('Playing audio for:', text, 'IPA:', ipa);
         const utterance = new SpeechSynthesisUtterance(text);
         
         // Try to find an English voice that might better support phonetics
@@ -712,11 +923,203 @@ function shouldStopTest(responses: Response[]): boolean {
     return se < CAT_CONFIG.targetSE;
 }
 
+// Check window type
+function isParticipantWindow(): boolean {
+    return window.name === 'participant';
+}
+
+function isExperimenterWindow(): boolean {
+    return window.name === 'experimenter' || (!isParticipantWindow() && window.name !== '');
+}
+
+// Send updates between windows
+function sendToExperimenter(data: any) {
+    if (window.opener && !window.opener.closed) {
+        window.opener.postMessage(data, '*');
+    }
+}
+
+function sendToParticipant(data: any) {
+    const participantWin = (window as any).participantWindow;
+    if (participantWin && !participantWin.closed) {
+        participantWin.postMessage(data, '*');
+    }
+}
+
+// Create experimenter panel HTML
+function createExperimenterPanel(): string {
+    return `
+        <div class="experimenter-panel" id="experimenter-panel">
+            <h2 style="text-align: center;">Experimenter Control Panel</h2>
+            
+            <button class="open-participant-btn" onclick="window.openParticipantWindow()">
+                Open Participant Window
+            </button>
+            
+            <div class="exp-section">
+                <h3>Current Trial</h3>
+                <div class="exp-current-item" id="exp-current-item">Waiting...</div>
+                <div class="exp-ipa" id="exp-ipa"></div>
+                <div class="exp-info">
+                    <span>Type:</span>
+                    <span id="exp-item-type">-</span>
+                </div>
+                <div class="exp-info">
+                    <span>Progress:</span>
+                    <span id="exp-progress">-</span>
+                </div>
+                <div class="exp-info">
+                    <span>Difficulty:</span>
+                    <span id="exp-difficulty">-</span>
+                </div>
+            </div>
+            
+            <div class="exp-section">
+                <h3>Scoring</h3>
+                <div class="exp-controls">
+                    <button class="exp-button exp-correct" onclick="window.scoreResponse(true)">
+                        ✓ Correct (1/↑)
+                    </button>
+                    <button class="exp-button exp-incorrect" onclick="window.scoreResponse(false)">
+                        ✗ Incorrect (0/↓)
+                    </button>
+                </div>
+                <div class="exp-controls">
+                    <button class="exp-button" style="background: #4CAF50" onclick="window.repeatAudioExp()">
+                        🔊 Repeat (R)
+                    </button>
+                    <button class="exp-button" style="background: #ff9800" onclick="window.pauseExp()">
+                        ⏸ Pause (P)
+                    </button>
+                </div>
+            </div>
+            
+            <div class="exp-section">
+                <h3>Statistics</h3>
+                <div class="exp-info">
+                    <span>Total Items:</span>
+                    <span id="exp-total">0</span>
+                </div>
+                <div class="exp-info">
+                    <span>Correct:</span>
+                    <span id="exp-correct">0</span>
+                </div>
+                <div class="exp-info">
+                    <span>Accuracy:</span>
+                    <span id="exp-accuracy">-</span>
+                </div>
+                <div class="exp-info">
+                    <span>Ability:</span>
+                    <span id="exp-ability">-</span>
+                </div>
+            </div>
+            
+            <div class="exp-section" style="background: #fffbeb;">
+                <h3>Shortcuts</h3>
+                <div style="font-size: 14px; line-height: 1.8;">
+                    <div><strong>1/↑</strong> - Correct</div>
+                    <div><strong>0/↓</strong> - Incorrect</div>
+                    <div><strong>R</strong> - Repeat audio</div>
+                    <div><strong>P</strong> - Pause</div>
+                    <div><strong>Space</strong> - Continue</div>
+                    <div><strong>←</strong> - Go back</div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
 function createItemStimulus(item: WordItem): string {
     const currentCount = state.isPractice ? state.practiceResponses.length + 1 : state.responses.length + 1;
     const totalCount = state.isPractice ? 3 : CAT_CONFIG.maxItems;
     const progressText = state.isPractice ? `Practice ${currentCount} of 3` : `Item ${currentCount} of ${totalCount}`;
     
+    // Send trial info to experimenter window
+    if (isParticipantWindow()) {
+        sendToExperimenter({
+            type: 'trial-update',
+            content: typeof item.content === 'string' ? item.content : item.target || '',
+            ipa: item.ipa,
+            itemType: item.type,
+            progress: progressText,
+            difficulty: item.difficulty,
+            isPractice: state.isPractice
+        });
+    }
+    
+    // For participant window, show clean view without controls
+    if (isParticipantWindow()) {
+        if (item.type === 'letter_array' && item.target) {
+            return `
+                ${ORR_STYLES}
+                <style>
+                    .participant-view {
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        justify-content: center;
+                        min-height: 100vh;
+                        background: white;
+                    }
+                    .participant-instructions {
+                        font-size: 32px;
+                        color: #333;
+                        margin-bottom: 40px;
+                    }
+                    .participant-letter-array {
+                        display: flex;
+                        gap: 60px;
+                        margin: 40px 0;
+                    }
+                    .participant-letter-choice {
+                        font-size: 80px;
+                        font-weight: bold;
+                        padding: 40px 50px;
+                        border: 3px solid #ddd;
+                        border-radius: 10px;
+                        background: white;
+                    }
+                </style>
+                <div class="participant-view">
+                    <div class="participant-instructions">Point to the letter ${item.target}</div>
+                    <div class="participant-letter-array">
+                        ${(item.content as string[]).map((letter, index) => `
+                            <div class="participant-letter-choice" data-index="${index}" data-correct="${letter === item.target}">
+                                ${letter}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        } else {
+            return `
+                ${ORR_STYLES}
+                <style>
+                    .participant-view {
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        justify-content: center;
+                        min-height: 100vh;
+                        background: white;
+                    }
+                    .participant-item {
+                        font-size: 120px;
+                        font-weight: bold;
+                        color: #333;
+                        margin: 60px 0;
+                        font-family: 'Arial', sans-serif;
+                        letter-spacing: 3px;
+                    }
+                </style>
+                <div class="participant-view">
+                    <div class="participant-item">${item.content}</div>
+                </div>
+            `;
+        }
+    }
+    
+    // Original view for standalone mode
     const audioRepeatButton = item.type !== 'letter_array' ? `
         <button class="orr-audio-repeat" onclick="window.repeatAudio()" title="Repeat audio (R)">
             🔊 Repeat
@@ -849,7 +1252,7 @@ function createItemStimulus(item: WordItem): string {
     }
 }
 
-function createPauseScreen() {
+function createPauseScreen(jsPsych: JsPsych) {
     return {
         type: HtmlButtonResponsePlugin,
         stimulus: `
@@ -859,11 +1262,23 @@ function createPauseScreen() {
                 <div style="font-size: 20px; line-height: 1.6; margin: 40px 0;">
                     <p>The test has been paused.</p>
                     <p>Take a break if needed.</p>
-                    <p style="margin-top: 30px;"><strong>When you're ready, click Continue to resume.</strong></p>
+                    <p style="margin-top: 30px;"><strong>${isParticipantWindow() ? 'Waiting for experimenter to continue...' : 'When you\'re ready, click Continue to resume.'}</strong></p>
                 </div>
             </div>
         `,
-        choices: ['Continue']
+        choices: isParticipantWindow() ? [] : ['Continue'],
+        on_load: function() {
+            if (isParticipantWindow()) {
+                // Listen for continue message from experimenter
+                const continueListener = (event: MessageEvent) => {
+                    if (event.source === window.opener && event.data.type === 'continue') {
+                        window.removeEventListener('message', continueListener);
+                        jsPsych.finishTrial();
+                    }
+                };
+                window.addEventListener('message', continueListener);
+            }
+        }
     };
 }
 
@@ -918,6 +1333,82 @@ function createPracticeComplete() {
 }
 
 /* Timeline component generating functions */
+function createModeSelection() {
+    return {
+        type: HtmlButtonResponsePlugin,
+        stimulus: `
+            ${ORR_STYLES}
+            <div style="max-width: 700px; margin: auto; text-align: center;">
+                <h1>Oral Reading Recognition Test</h1>
+                <h2>Select Display Mode</h2>
+                <div style="font-size: 18px; margin: 40px 0; line-height: 1.8;">
+                    <p><strong>Single Window Mode:</strong> Everything in one window (traditional setup)</p>
+                    <p><strong>Dual Window Mode:</strong> Separate windows for participant and experimenter</p>
+                </div>
+            </div>
+        `,
+        choices: ['Single Window', 'Dual Window (Experimenter)', 'Dual Window (Participant)'],
+        on_finish: function(data: TrialData) {
+            if (data.response === '1') {
+                // Dual Window - Experimenter
+                window.name = 'experimenter';
+                (window as any).isDualMode = true;
+                (window as any).isExperimenter = true;
+                
+                // Add experimenter panel to page
+                document.body.insertAdjacentHTML('beforeend', createExperimenterPanel());
+                
+                // Set up window functions
+                (window as any).openParticipantWindow = function() {
+                    const url = window.location.href;
+                    (window as any).participantWindow = window.open(url, 'participant', 'width=1200,height=800');
+                };
+                
+                (window as any).scoreResponse = function(correct: boolean) {
+                    sendToParticipant({ type: 'score', correct });
+                };
+                
+                (window as any).repeatAudioExp = function() {
+                    sendToParticipant({ type: 'repeat' });
+                };
+                
+                (window as any).pauseExp = function() {
+                    sendToParticipant({ type: 'pause' });
+                };
+                
+                // Listen for updates from participant
+                window.addEventListener('message', (event) => {
+                    if (event.data.type === 'trial-update') {
+                        document.getElementById('exp-current-item')!.textContent = event.data.content || '';
+                        document.getElementById('exp-ipa')!.textContent = event.data.ipa || '';
+                        document.getElementById('exp-item-type')!.textContent = event.data.itemType || '-';
+                        document.getElementById('exp-progress')!.textContent = event.data.progress || '-';
+                        document.getElementById('exp-difficulty')!.textContent = event.data.difficulty ? event.data.difficulty.toFixed(2) : '-';
+                    } else if (event.data.type === 'experiment-stats') {
+                        document.getElementById('exp-total')!.textContent = event.data.totalResponses || '0';
+                        document.getElementById('exp-correct')!.textContent = event.data.correctResponses || '0';
+                        document.getElementById('exp-accuracy')!.textContent = event.data.totalResponses > 0 
+                            ? ((event.data.correctResponses / event.data.totalResponses * 100).toFixed(1) + '%')
+                            : '-';
+                        document.getElementById('exp-ability')!.textContent = event.data.abilityEstimate 
+                            ? event.data.abilityEstimate.toFixed(2)
+                            : '-';
+                    }
+                });
+            } else if (data.response === '2') {
+                // Dual Window - Participant
+                window.name = 'participant';
+                (window as any).isDualMode = true;
+                (window as any).isExperimenter = false;
+            } else {
+                // Single Window Mode
+                (window as any).isDualMode = false;
+                (window as any).isExperimenter = false;
+            }
+        }
+    };
+}
+
 function createDemographics() {
     return {
         type: HtmlButtonResponsePlugin,
@@ -1117,6 +1608,12 @@ function createTestTrial(jsPsych: JsPsych, isPractice: boolean = false) {
                     return;
                 }
                 
+                // Check if we have a pending response from experimenter
+                if ((window as any).pendingResponse && !data.response) {
+                    data.response = (window as any).pendingResponse;
+                    delete (window as any).pendingResponse;
+                }
+                
                 // Map arrow keys to scores
                 let scoreResponse = data.response;
                 if (data.response === 'ArrowUp') scoreResponse = '1';
@@ -1152,6 +1649,11 @@ function createSpacebarTrial(jsPsych: JsPsych, isPractice: boolean = false) {
             
             const prevData = jsPsych.data.get().filter({phase: 'scoring'}).last(1).values()[0] as TrialData;
             const correct = prevData.correct || false;
+            
+            // For participant window, just show the same content
+            if (isParticipantWindow()) {
+                return state.currentItem ? createItemStimulus(state.currentItem) : '';
+            }
             
             let html = `${ORR_STYLES}<div class="orr-container">`;
             
@@ -1276,6 +1778,17 @@ function createResults(jsPsych: JsPsych) {
             // Store export data in window for download functions
             (window as any).orrExportData = exportData;
             
+            // Send experiment complete message to experimenter
+            if (isParticipantWindow()) {
+                sendToExperimenter({
+                    type: 'experiment-complete',
+                    totalResponses: state.responses.length,
+                    correctResponses: totalCorrect,
+                    accuracy: parseFloat(accuracy as string),
+                    abilityEstimate: finalAbility
+                });
+            }
+            
             return `
                 ${ORR_STYLES}
                 <style>
@@ -1391,6 +1904,23 @@ export async function createTimeline(
     // Reset state for new timeline
     resetState();
     
+    // Store jsPsych instance globally for message handlers
+    if (isParticipantWindow()) {
+        (window as any).experimentJsPsych = jsPsych;
+    }
+    
+    // Send stats updates periodically
+    if (isParticipantWindow()) {
+        setInterval(() => {
+            sendToExperimenter({
+                type: 'experiment-stats',
+                totalResponses: state.responses.length,
+                correctResponses: state.responses.filter(r => r.correct).length,
+                abilityEstimate: state.abilityEstimate
+            });
+        }, 1000);
+    }
+    
     // Load voices
     if ('speechSynthesis' in window) {
         // Load voices (some browsers need this)
@@ -1406,6 +1936,11 @@ export async function createTimeline(
     
     const timeline: Record<string, any>[] = [];
     
+    // Mode selection (only if not already in a specific mode)
+    if (!window.name) {
+        timeline.push(createModeSelection());
+    }
+    
     // Load words if preloading
     if (preloadWords && CAT_CONFIG.items.length === 0) {
         const loader = new ORRWordBankLoader();
@@ -1418,11 +1953,19 @@ export async function createTimeline(
         }
     }
     
-    // Demographics
-    timeline.push(createDemographics());
+    // Demographics (skip for experimenter window and participant window with pre-filled data)
+    if (!isExperimenterWindow()) {
+        if (isParticipantWindow() && (window as any).participantData) {
+            // Use participant data from experimenter
+            state.participantData = (window as any).participantData;
+            state.abilityEstimate = getStartPoint(state.participantData.age, state.participantData.education);
+        } else {
+            timeline.push(createDemographics());
+        }
+    }
     
-    // Setup instructions
-    if (showInstructions) {
+    // Setup instructions (skip for experimenter window)
+    if (showInstructions && !isExperimenterWindow()) {
         timeline.push(createSetupInstructions());
         
         // Practice trials
@@ -1433,7 +1976,7 @@ export async function createTimeline(
             timeline: [
                 // Conditional pause screen
                 {
-                    timeline: [createPauseScreen()],
+                    timeline: [createPauseScreen(jsPsych)],
                     conditional_function: function() {
                         const lastTrial = jsPsych.data.get().last(1).values()[0];
                         return lastTrial && lastTrial.pause_requested === true;
@@ -1472,38 +2015,56 @@ export async function createTimeline(
         timeline.push(createMainInstructions());
     }
     
-    // Main test loop with pause handling
-    const testLoop = {
-        timeline: [
-            // Conditional pause screen
-            {
-                timeline: [createPauseScreen()],
-                conditional_function: function() {
-                    const lastTrial = jsPsych.data.get().last(1).values()[0];
-                    return lastTrial && lastTrial.pause_requested === true;
+    // Main test loop with pause handling (skip for experimenter window)
+    if (!isExperimenterWindow()) {
+        const testLoop = {
+            timeline: [
+                // Conditional pause screen
+                {
+                    timeline: [createPauseScreen(jsPsych)],
+                    conditional_function: function() {
+                        const lastTrial = jsPsych.data.get().last(1).values()[0];
+                        return lastTrial && lastTrial.pause_requested === true;
+                    }
+                },
+                createTestTrial(jsPsych, false),
+                // Only show spacebar trial if not paused
+                {
+                    timeline: [createSpacebarTrial(jsPsych, false)],
+                    conditional_function: function() {
+                        const lastTrial = jsPsych.data.get().last(1).values()[0];
+                        return !lastTrial.pause_requested;
+                    }
                 }
-            },
-            createTestTrial(jsPsych, false),
-            // Only show spacebar trial if not paused
-            {
-                timeline: [createSpacebarTrial(jsPsych, false)],
-                conditional_function: function() {
-                    const lastTrial = jsPsych.data.get().last(1).values()[0];
-                    return !lastTrial.pause_requested;
-                }
+            ],
+            loop_function: function() {
+                return !shouldStopTest(state.responses) && 
+                       state.itemsAdministered.length < CAT_CONFIG.items.length;
             }
-        ],
-        loop_function: function() {
-            return !shouldStopTest(state.responses) && 
-                   state.itemsAdministered.length < CAT_CONFIG.items.length;
-        }
-    };
-    
-    timeline.push(testLoop);
+        };
+        
+        timeline.push(testLoop);
+    }
     
     // Results
-    if (showResults) {
+    if (showResults && !isExperimenterWindow()) {
         timeline.push(createResults(jsPsych));
+    }
+    
+    // For experimenter window, add a waiting screen
+    if (isExperimenterWindow()) {
+        timeline.push({
+            type: HtmlButtonResponsePlugin,
+            stimulus: `
+                ${ORR_STYLES}
+                <div style="max-width: 700px; margin: auto; text-align: center;">
+                    <h2>Experimenter Mode Active</h2>
+                    <p>Use the control panel on the right to manage the experiment.</p>
+                    <p>Click "Open Participant Window" to start.</p>
+                </div>
+            `,
+            choices: []
+        });
     }
     
     return timeline;

@@ -1,26 +1,515 @@
 <!DOCTYPE html>
 <html>
-
 <head>
-  <title>jsPsychTimelineOrrt Example</title>
-  <script src="https://unpkg.com/jspsych"></script>
-  <script src="../dist/index.global.js"></script>
-  <!-- Load the published timeline package here, e.g.
-<script src="https://unpkg.com/orrt"></script>
-<script src="../dist/index.global.js"></script> -->
-  <link rel="stylesheet" href="https://unpkg.com/jspsych/css/jspsych.css">
+    <title>ORRT - Experimenter Control Panel</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .control-panel {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+        .section {
+            background: #f8f8f8;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+        }
+        .section h2 {
+            margin-top: 0;
+            color: #0066cc;
+        }
+        .current-item {
+            font-size: 48px;
+            font-weight: bold;
+            text-align: center;
+            padding: 30px;
+            background: #e8f4f8;
+            border-radius: 8px;
+            margin: 20px 0;
+            min-height: 100px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .ipa-display {
+            font-size: 32px;
+            color: #666;
+            text-align: center;
+            font-style: italic;
+            margin: 20px 0;
+        }
+        .control-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .control-button {
+            padding: 20px;
+            font-size: 18px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: bold;
+        }
+        .control-button:hover {
+            transform: scale(1.05);
+        }
+        .score-correct {
+            background: #22c55e;
+            color: white;
+        }
+        .score-incorrect {
+            background: #ef4444;
+            color: white;
+        }
+        .action-button {
+            background: #0066cc;
+            color: white;
+        }
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+        .info-item {
+            padding: 15px;
+            background: white;
+            border-radius: 5px;
+            border: 1px solid #eee;
+        }
+        .info-label {
+            font-weight: bold;
+            color: #666;
+            font-size: 14px;
+        }
+        .info-value {
+            font-size: 24px;
+            color: #333;
+            margin-top: 5px;
+        }
+        .status-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 10px 20px;
+            background: #333;
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #22c55e;
+        }
+        .disconnected .status-dot {
+            background: #ef4444;
+        }
+        body {
+            padding-top: 60px; /* Account for status bar */
+        }
+        .keyboard-shortcuts {
+            background: #fffbeb;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        .shortcut-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .shortcut {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .key {
+            background: #333;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-weight: bold;
+        }
+        #start-button {
+            width: 100%;
+            padding: 25px;
+            font-size: 24px;
+            background: #0066cc;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-bottom: 20px;
+        }
+        #start-button:hover {
+            background: #0052a3;
+        }
+        #start-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .demographics-form {
+            display: grid;
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .form-group label {
+            font-weight: bold;
+            color: #666;
+        }
+        .form-group input, .form-group select {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+    </style>
 </head>
+<body>
+    <div class="status-bar">
+        <div class="status-indicator" id="participant-status">
+            <span class="status-dot"></span>
+            <span>Participant Window: <span id="status-text">Connecting...</span></span>
+        </div>
+        <div>ORRT Experimenter Control Panel</div>
+    </div>
 
-<body></body>
-<script>
-  const jsPsych = initJsPsych();
+    <div class="container">
+        <h1>Oral Reading Recognition Test</h1>
+        
+        <button id="start-button" onclick="startExperiment()">Start Experiment</button>
+        <button id="open-participant-button" onclick="openParticipantWindow()" style="display: none; width: 100%; padding: 15px; font-size: 18px; background: #666; color: white; border: none; border-radius: 8px; cursor: pointer; margin-bottom: 20px;">
+            Open Participant Window
+        </button>
+        
+        <div class="control-panel">
+            <div class="section" id="participant-setup-section">
+                <h2>Participant Setup</h2>
+                <div class="demographics-form">
+                    <div class="form-group">
+                        <label>Age:</label>
+                        <input type="number" id="participant-age" min="7" max="100" value="10">
+                    </div>
+                    <div class="form-group">
+                        <label>Education Level (for 19+):</label>
+                        <select id="participant-education">
+                            <option value="high_school">High School Graduate</option>
+                            <option value="less_than_high_school">Less than High School</option>
+                            <option value="some_college">Some College</option>
+                            <option value="college">College Graduate</option>
+                            <option value="graduate">Graduate Degree</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
 
-  async function runExperiment() {
-    const timeline = await jsPsychTimelineOrrt.createTimeline(jsPsych, { });
-    jsPsych.run(timeline);
-  }
+            <div class="section">
+                <h2>Current Trial</h2>
+                <div class="current-item" id="current-item">Ready to start...</div>
+                <div class="ipa-display" id="ipa-display"></div>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <div class="info-label">Type:</div>
+                        <div class="info-value" id="item-type">-</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Progress:</div>
+                        <div class="info-value" id="progress">-</div>
+                    </div>
+                </div>
+            </div>
 
-  runExperiment();
-</script>
+            <div class="section">
+                <h2>Scoring Controls</h2>
+                <div class="control-buttons">
+                    <button class="control-button score-correct" onclick="scoreItem(true)" disabled id="score-correct">
+                        ✓ Correct
+                    </button>
+                    <button class="control-button score-incorrect" onclick="scoreItem(false)" disabled id="score-incorrect">
+                        ✗ Incorrect
+                    </button>
+                    <button class="control-button action-button" onclick="repeatAudio()" disabled id="repeat-button">
+                        🔊 Repeat Audio
+                    </button>
+                    <button class="control-button action-button" onclick="pauseExperiment()" disabled id="pause-button">
+                        ⏸ Pause
+                    </button>
+                </div>
+                <button class="control-button action-button" onclick="continueNext()" disabled id="continue-button" style="width: 100%; margin-top: 15px;">
+                    Continue → (Space)
+                </button>
+            </div>
 
+            <div class="section" id="statistics-section">
+                <h2>Experiment Statistics</h2>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <div class="info-label">Total Items:</div>
+                        <div class="info-value" id="total-items">0</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Correct:</div>
+                        <div class="info-value" id="correct-count">0</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Accuracy:</div>
+                        <div class="info-value" id="accuracy">-</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Ability:</div>
+                        <div class="info-value" id="ability">-</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="keyboard-shortcuts">
+            <h3>Keyboard Shortcuts</h3>
+            <div class="shortcut-grid">
+                <div class="shortcut"><span class="key">1</span> or <span class="key">↑</span> Correct</div>
+                <div class="shortcut"><span class="key">0</span> or <span class="key">↓</span> Incorrect</div>
+                <div class="shortcut"><span class="key">Space</span> Continue</div>
+                <div class="shortcut"><span class="key">R</span> Repeat Audio</div>
+                <div class="shortcut"><span class="key">P</span> Pause</div>
+                <div class="shortcut"><span class="key">←</span> Go Back</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let participantWindow = null;
+        let currentResponse = null;
+        let experimentStarted = false;
+
+        // Open participant window automatically
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                openParticipantWindow();
+            }, 500); // Small delay to ensure page is fully loaded
+        });
+
+        function openParticipantWindow() {
+            // Get the current directory path
+            const currentPath = window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/'));
+            const participantUrl = window.location.origin + currentPath + '/participant.html';
+            
+            participantWindow = window.open(participantUrl, 'participant', 'width=1200,height=800');
+            
+            if (!participantWindow) {
+                alert('Failed to open participant window automatically. Please click "Open Participant Window" button or check your popup blocker settings.');
+                document.getElementById('open-participant-button').style.display = 'block';
+                return;
+            }
+            
+            // Set connection flag
+            window.participantConnected = false;
+            
+            // Monitor participant window
+            const monitorConnection = setInterval(() => {
+                if (!participantWindow || participantWindow.closed) {
+                    document.getElementById('participant-status').classList.add('disconnected');
+                    document.getElementById('status-text').textContent = 'Disconnected';
+                    window.participantConnected = false;
+                    clearInterval(monitorConnection);
+                }
+            }, 1000);
+        }
+
+        function startExperiment() {
+            if (!participantWindow || participantWindow.closed) {
+                alert('Participant window is not open. Please refresh and try again.');
+                return;
+            }
+
+            // Get participant data
+            const participantData = {
+                age: parseInt(document.getElementById('participant-age').value),
+                education: document.getElementById('participant-education').value
+            };
+
+            // Send start command to participant window
+            participantWindow.postMessage({
+                type: 'start',
+                participantData: participantData
+            }, '*');
+
+            // Disable start button and enable controls
+            document.getElementById('start-button').disabled = true;
+            document.getElementById('start-button').textContent = 'Experiment Running';
+            experimentStarted = true;
+            enableControls();
+            
+            // Hide participant setup section
+            document.getElementById('participant-setup-section').style.display = 'none';
+            // Hide statistics section until end
+            document.getElementById('statistics-section').style.display = 'none';
+        }
+
+        function enableControls() {
+            document.getElementById('score-correct').disabled = false;
+            document.getElementById('score-incorrect').disabled = false;
+            document.getElementById('repeat-button').disabled = false;
+            document.getElementById('pause-button').disabled = false;
+        }
+
+        function scoreItem(correct) {
+            console.log('Scoring item:', correct);
+            currentResponse = correct;
+            
+            if (!participantWindow || participantWindow.closed) {
+                console.error('Participant window not available');
+                return;
+            }
+            
+            participantWindow.postMessage({
+                type: 'score',
+                correct: correct
+            }, '*');
+            
+            // Enable continue button
+            document.getElementById('continue-button').disabled = false;
+            
+            // Update UI
+            document.getElementById('score-correct').disabled = true;
+            document.getElementById('score-incorrect').disabled = true;
+        }
+
+        function continueNext() {
+            console.log('Continue clicked, currentResponse:', currentResponse);
+            
+            if (!participantWindow || participantWindow.closed) {
+                console.error('Participant window not available');
+                return;
+            }
+            
+            if (currentResponse !== null) {
+                participantWindow.postMessage({
+                    type: 'continue'
+                }, '*');
+                
+                // Reset for next trial
+                currentResponse = null;
+                document.getElementById('continue-button').disabled = true;
+                document.getElementById('score-correct').disabled = false;
+                document.getElementById('score-incorrect').disabled = false;
+            } else {
+                console.log('No response selected yet');
+            }
+        }
+
+        function repeatAudio() {
+            participantWindow.postMessage({
+                type: 'repeat'
+            }, '*');
+        }
+
+        function pauseExperiment() {
+            participantWindow.postMessage({
+                type: 'pause'
+            }, '*');
+        }
+
+        // Listen for updates from participant window
+        window.addEventListener('message', (event) => {
+            // Verify message is from participant window
+            if (event.source === participantWindow) {
+                if (event.data.type === 'participant-ready' || event.data.type === 'pong') {
+                    // Connection confirmed
+                    window.participantConnected = true;
+                    document.getElementById('participant-status').classList.remove('disconnected');
+                    document.getElementById('status-text').textContent = 'Connected';
+                    console.log('Participant connection confirmed');
+                } else if (event.data.type === 'trial-update') {
+                    document.getElementById('current-item').textContent = event.data.content || '';
+                    document.getElementById('ipa-display').textContent = event.data.ipa || '';
+                    document.getElementById('item-type').textContent = event.data.itemType || '-';
+                    document.getElementById('progress').textContent = event.data.progress || '-';
+                    
+                    // Reset scoring state
+                    currentResponse = null;
+                    document.getElementById('continue-button').disabled = true;
+                    document.getElementById('score-correct').disabled = false;
+                    document.getElementById('score-incorrect').disabled = false;
+                } else if (event.data.type === 'stats-update' || event.data.type === 'experiment-stats') {
+                    document.getElementById('total-items').textContent = event.data.totalResponses || event.data.totalItems || '0';
+                    document.getElementById('correct-count').textContent = event.data.correctResponses || event.data.correctCount || '0';
+                    const total = event.data.totalResponses || event.data.totalItems || 0;
+                    const correct = event.data.correctResponses || event.data.correctCount || 0;
+                    document.getElementById('accuracy').textContent = total > 0 ? (correct / total * 100).toFixed(1) + '%' : '-';
+                    document.getElementById('ability').textContent = event.data.abilityEstimate ? event.data.abilityEstimate.toFixed(2) : '-';
+                } else if (event.data.type === 'experiment-complete') {
+                    // Show statistics at the end
+                    document.getElementById('statistics-section').style.display = 'block';
+                    alert('Experiment complete! Results are shown below.');
+                    document.getElementById('start-button').textContent = 'Experiment Complete';
+                }
+            }
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (!experimentStarted) return;
+            
+            if (e.key === '1' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (!document.getElementById('score-correct').disabled) {
+                    scoreItem(true);
+                }
+            } else if (e.key === '0' || e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (!document.getElementById('score-incorrect').disabled) {
+                    scoreItem(false);
+                }
+            } else if (e.key === ' ') {
+                e.preventDefault();
+                if (!document.getElementById('continue-button').disabled) {
+                    continueNext();
+                }
+            } else if (e.key === 'r' || e.key === 'R') {
+                e.preventDefault();
+                repeatAudio();
+            } else if (e.key === 'p' || e.key === 'P') {
+                e.preventDefault();
+                pauseExperiment();
+            }
+        });
+    </script>
+</body>
 </html>
