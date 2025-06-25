@@ -36,40 +36,43 @@ const STYLES = `
         overflow: hidden;
     }
     .word-display {
-        font-size: 72px;
+        font-size: 60px;
         font-weight: bold;
         text-align: center;
-        margin: 40px 0;
+        margin: 20px 0;
         font-family: Arial, sans-serif;
     }
     .instructions {
-        font-size: 22px;
+        font-size: 18px;
         text-align: center;
-        max-width: 700px;
+        max-width: 600px;
         margin: 0 auto;
-        line-height: 1.5;
+        line-height: 1.4;
         font-family: Arial, sans-serif;
-        padding: 20px;
+        padding: 10px;
     }
     .instructions h1 {
-        font-size: 36px;
-        margin: 20px 0;
+        font-size: 28px;
+        margin: 10px 0;
     }
     .instructions h2 {
-        font-size: 28px;
-        margin: 20px 0;
+        font-size: 24px;
+        margin: 10px 0;
+    }
+    .instructions p {
+        margin: 8px 0;
     }
     .recording-indicator {
         color: #dc3545;
-        font-size: 18px;
+        font-size: 16px;
         text-align: center;
-        margin-top: 30px;
+        margin-top: 20px;
         font-family: Arial, sans-serif;
     }
     .progress {
         text-align: center;
         color: #666;
-        font-size: 16px;
+        font-size: 14px;
         margin-bottom: 10px;
         font-family: Arial, sans-serif;
     }
@@ -85,6 +88,11 @@ const STYLES = `
         font-size: 48px;
         text-align: center;
         color: #666;
+    }
+    .jspsych-btn {
+        margin: 5px;
+        padding: 8px 16px;
+        font-size: 16px;
     }
 </style>
 `;
@@ -185,28 +193,40 @@ function createWelcomeScreens() {
     ];
 }
 
-// Create microphone permission screen
-function createMicPermission(jsPsych: JsPsych) {
-    return {
-        type: HtmlButtonResponsePlugin,
-        stimulus: `
-            ${STYLES}
-            <div class="instructions">
-                <h2>Microphone Permission Required</h2>
-                <p>This test needs to record your voice.</p>
-                <p>Click below to grant microphone access.</p>
-                <p>A browser popup will appear asking for permission.</p>
-            </div>
-        `,
-        choices: ['Grant Microphone Access'],
-        on_finish: async function() {
-            const success = await initializeRecording();
-            if (!success) {
-                alert('Microphone access is required. Please reload the page and grant permission.');
-                jsPsych.endExperiment('Microphone access denied.');
+// Create microphone permission screens
+function createMicPermissionScreens(jsPsych: JsPsych) {
+    return [
+        {
+            type: HtmlButtonResponsePlugin,
+            stimulus: `
+                ${STYLES}
+                <div class="instructions">
+                    <h2>Microphone Required</h2>
+                    <p>This test needs to record your voice.</p>
+                </div>
+            `,
+            choices: ['Continue']
+        },
+        {
+            type: HtmlButtonResponsePlugin,
+            stimulus: `
+                ${STYLES}
+                <div class="instructions">
+                    <h2>Grant Permission</h2>
+                    <p>Click below to allow microphone access.</p>
+                    <p>A browser popup will appear.</p>
+                </div>
+            `,
+            choices: ['Grant Access'],
+            on_finish: async function() {
+                const success = await initializeRecording();
+                if (!success) {
+                    alert('Microphone access is required. Please reload the page and grant permission.');
+                    jsPsych.endExperiment('Microphone access denied.');
+                }
             }
         }
-    };
+    ];
 }
 
 // Create ready screens
@@ -248,10 +268,10 @@ function createWordTrial(word: string, index: number) {
             <div class="progress">Word ${index + 1} of 40</div>
             <div class="word-display">${word}</div>
             <div class="recording-indicator recording">
-                🔴 Recording - Read the word aloud
+                🔴 Recording
             </div>
-            <div style="text-align: center; margin-top: 60px; color: #666; font-size: 18px;">
-                Press SPACE when done reading
+            <div style="text-align: center; margin-top: 20px; color: #666; font-size: 16px;">
+                Press SPACE when done
             </div>
         `,
         choices: [' '],
@@ -348,8 +368,8 @@ export async function createTimeline(jsPsych: JsPsych): Promise<any[]> {
     // Welcome screens
     timeline.push(...createWelcomeScreens());
     
-    // Microphone permission
-    timeline.push(createMicPermission(jsPsych));
+    // Microphone permission screens
+    timeline.push(...createMicPermissionScreens(jsPsych));
     
     // Ready screens
     timeline.push(...createReadyScreens());
