@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test jsPsych Pages</title>
+    <script src="https://unpkg.com/jspsych@7.3.4"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-html-button-response@1.1.3"></script>
+    <link rel="stylesheet" href="https://unpkg.com/jspsych@7.3.4/css/jspsych.css">
+</head>
+<body></body>
+<script>
+    const jsPsych = initJsPsych();
+
+    const timeline = [];
+
+    // Page 1
+    timeline.push({
+        type: jsPsychHtmlButtonResponse,
+        stimulus: '<h1>Page 1</h1><p>This is the first page</p>',
+        choices: ['Next']
+    });
+
+    // Page 2
+    timeline.push({
+        type: jsPsychHtmlButtonResponse,
+        stimulus: '<h1>Page 2</h1><p>This is the second page</p>',
+        choices: ['Next']
+    });
+
+    // Page 3
+    timeline.push({
+        type: jsPsychHtmlButtonResponse,
+        stimulus: '<h1>Page 3</h1><p>This is the third page</p>',
+        choices: ['Done']
+    });
+
+    jsPsych.run(timeline);
+</script>
+</html>

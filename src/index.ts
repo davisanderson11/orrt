@@ -1,6 +1,8 @@
 import { JsPsych } from "jspsych";
-import HtmlKeyboardResponsePlugin from '@jspsych/plugin-html-keyboard-response';
-import HtmlButtonResponsePlugin from '@jspsych/plugin-html-button-response';
+
+// Declare global plugin variables that will be available when loaded via script tags
+declare const jsPsychHtmlKeyboardResponse: any;
+declare const jsPsychHtmlButtonResponse: any;
 
 // Fixed list of 40 words from easy to hard
 const WORD_LIST = [
@@ -166,9 +168,8 @@ function stopContinuousRecording() {
 function createWelcomeScreens() {
     return [
         {
-            type: HtmlButtonResponsePlugin,
+            type: jsPsychHtmlButtonResponse,
             stimulus: `
-                ${STYLES}
                 <div class="instructions">
                     <h1>Word Reading Test</h1>
                     <p>You will see 40 words, one at a time.</p>
@@ -178,9 +179,8 @@ function createWelcomeScreens() {
             choices: ['Continue']
         },
         {
-            type: HtmlButtonResponsePlugin,
+            type: jsPsychHtmlButtonResponse,
             stimulus: `
-                ${STYLES}
                 <div class="instructions">
                     <h2>Instructions</h2>
                     <p>Your voice will be recorded.</p>
@@ -197,9 +197,8 @@ function createWelcomeScreens() {
 function createMicPermissionScreens(jsPsych: JsPsych) {
     return [
         {
-            type: HtmlButtonResponsePlugin,
+            type: jsPsychHtmlButtonResponse,
             stimulus: `
-                ${STYLES}
                 <div class="instructions">
                     <h2>Microphone Required</h2>
                     <p>This test needs to record your voice.</p>
@@ -208,9 +207,8 @@ function createMicPermissionScreens(jsPsych: JsPsych) {
             choices: ['Continue']
         },
         {
-            type: HtmlButtonResponsePlugin,
+            type: jsPsychHtmlButtonResponse,
             stimulus: `
-                ${STYLES}
                 <div class="instructions">
                     <h2>Grant Permission</h2>
                     <p>Click below to allow microphone access.</p>
@@ -233,9 +231,8 @@ function createMicPermissionScreens(jsPsych: JsPsych) {
 function createReadyScreens() {
     return [
         {
-            type: HtmlButtonResponsePlugin,
+            type: jsPsychHtmlButtonResponse,
             stimulus: `
-                ${STYLES}
                 <div class="instructions">
                     <h2>Microphone Ready!</h2>
                     <p>Your microphone has been successfully set up.</p>
@@ -245,9 +242,8 @@ function createReadyScreens() {
             choices: ['Continue']
         },
         {
-            type: HtmlButtonResponsePlugin,
+            type: jsPsychHtmlButtonResponse,
             stimulus: `
-                ${STYLES}
                 <div class="instructions">
                     <h2>Remember</h2>
                     <p>Read each word clearly.</p>
@@ -262,9 +258,8 @@ function createReadyScreens() {
 // Create word trial
 function createWordTrial(word: string, index: number) {
     return {
-        type: HtmlKeyboardResponsePlugin,
+        type: jsPsychHtmlKeyboardResponse,
         stimulus: `
-            ${STYLES}
             <div class="progress">Word ${index + 1} of 40</div>
             <div class="word-display">${word}</div>
             <div class="recording-indicator recording">
@@ -304,9 +299,8 @@ function createWordTrial(word: string, index: number) {
 function createEndScreens() {
     return [
         {
-            type: HtmlButtonResponsePlugin,
+            type: jsPsychHtmlButtonResponse,
             stimulus: `
-                ${STYLES}
                 <div class="instructions">
                     <h1>Test Complete!</h1>
                     <p>Thank you for participating.</p>
@@ -316,9 +310,8 @@ function createEndScreens() {
             choices: ['Continue']
         },
         {
-            type: HtmlButtonResponsePlugin,
+            type: jsPsychHtmlButtonResponse,
             stimulus: `
-                ${STYLES}
                 <div class="instructions">
                     <h2>Download Your Recording</h2>
                     <p id="download-status">Preparing your audio file...</p>
