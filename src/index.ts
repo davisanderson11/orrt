@@ -36,32 +36,41 @@ const STYLES = `
         overflow: hidden;
     }
     .word-display {
-        font-size: 96px;
+        font-size: 72px;
         font-weight: bold;
         text-align: center;
-        margin: 120px 0;
+        margin: 40px 0;
         font-family: Arial, sans-serif;
     }
     .instructions {
-        font-size: 24px;
+        font-size: 22px;
         text-align: center;
-        max-width: 800px;
+        max-width: 700px;
         margin: 0 auto;
-        line-height: 1.6;
+        line-height: 1.5;
         font-family: Arial, sans-serif;
+        padding: 20px;
+    }
+    .instructions h1 {
+        font-size: 36px;
+        margin: 20px 0;
+    }
+    .instructions h2 {
+        font-size: 28px;
+        margin: 20px 0;
     }
     .recording-indicator {
         color: #dc3545;
-        font-size: 20px;
+        font-size: 18px;
         text-align: center;
-        margin-top: 60px;
+        margin-top: 30px;
         font-family: Arial, sans-serif;
     }
     .progress {
         text-align: center;
         color: #666;
-        font-size: 18px;
-        margin-bottom: 20px;
+        font-size: 16px;
+        margin-bottom: 10px;
         font-family: Arial, sans-serif;
     }
     @keyframes pulse {
@@ -145,24 +154,35 @@ function stopContinuousRecording() {
     }
 }
 
-// Create welcome screen
-function createWelcome() {
-    return {
-        type: HtmlButtonResponsePlugin,
-        stimulus: `
-            ${STYLES}
-            <div class="instructions">
-                <h1>Word Reading Test</h1>
-                <p>You will see 40 words, one at a time.</p>
-                <p>Read each word out loud as clearly as you can.</p>
-                <p>Your voice will be recorded.</p>
-                <p>Press SPACE after reading each word to continue.</p>
-                <br>
-                <p><strong>Important:</strong> Speak clearly and at a normal pace.</p>
-            </div>
-        `,
-        choices: ['Begin Test']
-    };
+// Create welcome screens
+function createWelcomeScreens() {
+    return [
+        {
+            type: HtmlButtonResponsePlugin,
+            stimulus: `
+                ${STYLES}
+                <div class="instructions">
+                    <h1>Word Reading Test</h1>
+                    <p>You will see 40 words, one at a time.</p>
+                    <p>Read each word out loud as clearly as you can.</p>
+                </div>
+            `,
+            choices: ['Continue']
+        },
+        {
+            type: HtmlButtonResponsePlugin,
+            stimulus: `
+                ${STYLES}
+                <div class="instructions">
+                    <h2>Instructions</h2>
+                    <p>Your voice will be recorded.</p>
+                    <p>Press SPACE after reading each word to continue.</p>
+                    <p><strong>Important:</strong> Speak clearly and at a normal pace.</p>
+                </div>
+            `,
+            choices: ['Begin Test']
+        }
+    ];
 }
 
 // Create microphone permission screen
@@ -189,21 +209,34 @@ function createMicPermission(jsPsych: JsPsych) {
     };
 }
 
-// Create ready screen
-function createReadyScreen() {
-    return {
-        type: HtmlButtonResponsePlugin,
-        stimulus: `
-            ${STYLES}
-            <div class="instructions">
-                <h2>Microphone Ready!</h2>
-                <p>Your microphone has been successfully set up.</p>
-                <p>When you click below, the test will begin.</p>
-                <p>Remember to read each word clearly and press SPACE after each one.</p>
-            </div>
-        `,
-        choices: ['Start Test']
-    };
+// Create ready screens
+function createReadyScreens() {
+    return [
+        {
+            type: HtmlButtonResponsePlugin,
+            stimulus: `
+                ${STYLES}
+                <div class="instructions">
+                    <h2>Microphone Ready!</h2>
+                    <p>Your microphone has been successfully set up.</p>
+                    <p>When you click below, the test will begin.</p>
+                </div>
+            `,
+            choices: ['Continue']
+        },
+        {
+            type: HtmlButtonResponsePlugin,
+            stimulus: `
+                ${STYLES}
+                <div class="instructions">
+                    <h2>Remember</h2>
+                    <p>Read each word clearly.</p>
+                    <p>Press SPACE after each word.</p>
+                </div>
+            `,
+            choices: ['Start Test']
+        }
+    ];
 }
 
 // Create word trial
@@ -247,76 +280,87 @@ function createWordTrial(word: string, index: number) {
 }
 
 
-// Create end screen
-function createEndScreen() {
-    return {
-        type: HtmlButtonResponsePlugin,
-        stimulus: `
-            ${STYLES}
-            <div class="instructions">
-                <h1>Test Complete!</h1>
-                <p>Thank you for participating.</p>
-                <p>Your responses have been recorded.</p>
-                <br>
-                <p id="download-status">Preparing your audio file...</p>
-            </div>
-        `,
-        choices: ['Download Recording'],
-        on_load: function() {
-            // Wait a bit for the recording to fully stop and process
-            setTimeout(() => {
-                console.log('Processing audio. Chunks available:', audioChunks.length);
-                if (audioChunks.length > 0) {
-                    const finalBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                    console.log('Final blob size:', finalBlob.size);
-                    const audioUrl = URL.createObjectURL(finalBlob);
-                    
-                    // Update status
-                    const statusEl = document.getElementById('download-status');
-                    if (statusEl) {
-                        statusEl.innerHTML = '<strong style="color: green;">✓ Recording ready! Click below to download.</strong>';
-                    }
-                    
-                    // Store URL for download
-                    (window as any).recordingUrl = audioUrl;
-                } else {
-                    document.getElementById('download-status')!.innerHTML = 
-                        '<strong style="color: red;">No recording available. There may have been an error.</strong>';
-                }
-            }, 2000);
+// Create end screens
+function createEndScreens() {
+    return [
+        {
+            type: HtmlButtonResponsePlugin,
+            stimulus: `
+                ${STYLES}
+                <div class="instructions">
+                    <h1>Test Complete!</h1>
+                    <p>Thank you for participating.</p>
+                    <p>Your responses have been recorded.</p>
+                </div>
+            `,
+            choices: ['Continue']
         },
-        on_finish: function() {
-            // Download the audio file
-            if ((window as any).recordingUrl) {
-                const a = document.createElement('a');
-                a.href = (window as any).recordingUrl;
-                a.download = `word_reading_${new Date().toISOString().split('T')[0]}.webm`;
-                a.click();
+        {
+            type: HtmlButtonResponsePlugin,
+            stimulus: `
+                ${STYLES}
+                <div class="instructions">
+                    <h2>Download Your Recording</h2>
+                    <p id="download-status">Preparing your audio file...</p>
+                </div>
+            `,
+            choices: ['Download Recording'],
+            on_load: function() {
+                // Wait a bit for the recording to fully stop and process
+                setTimeout(() => {
+                    console.log('Processing audio. Chunks available:', audioChunks.length);
+                    if (audioChunks.length > 0) {
+                        const finalBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                        console.log('Final blob size:', finalBlob.size);
+                        const audioUrl = URL.createObjectURL(finalBlob);
+                        
+                        // Update status
+                        const statusEl = document.getElementById('download-status');
+                        if (statusEl) {
+                            statusEl.innerHTML = '<strong style="color: green;">✓ Recording ready! Click below to download.</strong>';
+                        }
+                        
+                        // Store URL for download
+                        (window as any).recordingUrl = audioUrl;
+                    } else {
+                        document.getElementById('download-status')!.innerHTML = 
+                            '<strong style="color: red;">No recording available. There may have been an error.</strong>';
+                    }
+                }, 2000);
+            },
+            on_finish: function() {
+                // Download the audio file
+                if ((window as any).recordingUrl) {
+                    const a = document.createElement('a');
+                    a.href = (window as any).recordingUrl;
+                    a.download = `word_reading_${new Date().toISOString().split('T')[0]}.webm`;
+                    a.click();
+                }
             }
         }
-    };
+    ];
 }
 
 // Main function to create timeline
 export async function createTimeline(jsPsych: JsPsych): Promise<any[]> {
     const timeline: any[] = [];
     
-    // Welcome
-    timeline.push(createWelcome());
+    // Welcome screens
+    timeline.push(...createWelcomeScreens());
     
     // Microphone permission
     timeline.push(createMicPermission(jsPsych));
     
-    // Ready screen
-    timeline.push(createReadyScreen());
+    // Ready screens
+    timeline.push(...createReadyScreens());
     
     // Add all word trials
     WORD_LIST.forEach((word, index) => {
         timeline.push(createWordTrial(word, index));
     });
     
-    // End screen
-    timeline.push(createEndScreen());
+    // End screens
+    timeline.push(...createEndScreens());
     
     return timeline;
 }
