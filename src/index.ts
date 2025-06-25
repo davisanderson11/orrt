@@ -19,6 +19,22 @@ const WORD_LIST = [
 // Simple styles
 const STYLES = `
 <style>
+    body {
+        overflow: hidden;
+        margin: 0;
+        padding: 0;
+        height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .jspsych-content {
+        overflow: hidden;
+        max-height: 100vh;
+    }
+    .jspsych-content-wrapper {
+        overflow: hidden;
+    }
     .word-display {
         font-size: 96px;
         font-weight: bold;
