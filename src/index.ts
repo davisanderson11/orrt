@@ -13,9 +13,9 @@ const WORD_LIST = [
     // Medium (21-30)
     "happy", "school", "friend", "water", "apple", "house", "money", "today", "night", "smile",
     // Hard (31-35)
-    "elephant", "butterfly", "computer", "important", "beautiful",
+    "psychology", "rhythm", "pneumonia", "mnemonic", "archipelago",
     // Very Hard (36-40)
-    "photograph", "necessary", "environment", "achievement", "consciousness"
+    "pharmaceutical", "idiosyncrasy", "onomatopoeia", "entrepreneurship", "serendipitous"
 ];
 
 // Simple styles
